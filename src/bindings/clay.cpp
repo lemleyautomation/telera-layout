@@ -1,0 +1,4 @@
+#include <iostream>
+
+#define CLAY_IMPLEMENTATION
+#include "clay.h"
