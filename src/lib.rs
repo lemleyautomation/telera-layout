@@ -12,8 +12,7 @@ mod config;
 use config::*;
 
 mod render_commands;
-pub use render_commands::RenderCommand;
-pub use render_commands::RenderCommandConfig;
+pub use render_commands::*;
 
 use std::{
     fmt::Debug, marker::PhantomData, os::raw::c_void
@@ -116,38 +115,27 @@ impl<ImageElementData: Debug + Default, CustomElementData: Debug + Default> Layo
         };
     }
 
-    pub fn end_layout<'commands>(&mut self) -> Vec<RenderCommand::<ImageElementData, CustomElementData>> {
-        unsafe {
-            let array = Clay_EndLayout();
-            let array = core::slice::from_raw_parts(array.internalArray, array.length as usize);
-            array.iter().map(|command| {
-                RenderCommand { 
-                    id: command.id, 
-                    bounding_box: [
-                        command.boundingBox.x, 
-                        command.boundingBox.y, 
-                        command.boundingBox.width, 
-                        command.boundingBox.height
-                    ], 
-                    z_index: command.zIndex,
-                    config: RenderCommandConfig::from_clay_render_command(command)
-                }
-            }).collect()
-        }
+    pub fn end_layout<'commands>(&mut self) -> Vec<RenderCommand::<'commands, ImageElementData, CustomElementData>> {
+        let array = unsafe {Clay_EndLayout()};
+        
+        let array = unsafe { core::slice::from_raw_parts(array.internalArray, array.length as usize) };
+
+        let commands = array.iter().map(|command| {
+            RenderCommand { 
+                id: command.id, 
+                bounding_box: [
+                    command.boundingBox.x, 
+                    command.boundingBox.y, 
+                    command.boundingBox.width, 
+                    command.boundingBox.height
+                ], 
+                z_index: command.zIndex,
+                config: RenderCommandConfig::from(command),
+            }
+        }).collect::<Vec<RenderCommand::<ImageElementData, CustomElementData>>>();
+
+        Vec::new()
     }
-
-    // pub fn end<'commands>(&mut self) -> Vec<RenderCommand<'commands, ImageElementData, CustomElementData>> {
-    //     let array = unsafe { Clay_EndLayout() };
-    //     let slice: &[Clay_RenderCommand] = unsafe { 
-    //         core::slice::from_raw_parts(array.internalArray, array.length as _) 
-    //     };
-    //     let mut commands = Vec::<RenderCommand<'commands, ImageElementData, CustomElementData>>::new();
-    //     for command in slice.iter() {
-    //         commands.push(unsafe { RenderCommand::from_clay_render_command(*command) });
-    //     }
-
-    //     commands
-    // }
 
     pub fn open_element<'render_pass>(&self) -> ConfigBuilder<'render_pass, ImageElementData, CustomElementData>{
         unsafe {
