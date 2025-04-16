@@ -12,7 +12,6 @@ mod config;
 use config::*;
 
 mod render_commands;
-use render_commands::*;
 pub use render_commands::RenderCommand;
 pub use render_commands::RenderCommandConfig;
 

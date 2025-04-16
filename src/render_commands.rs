@@ -181,27 +181,27 @@ impl<ImageElementData, CustomElementData>
 {
     #[allow(non_upper_case_globals)]
     pub(crate) unsafe fn from_clay_render_command(value: &Clay_RenderCommand) -> Self {
-        match value.commandType {
-            Clay_RenderCommandType_CLAY_RENDER_COMMAND_TYPE_NONE => Self::None(),
-            Clay_RenderCommandType_CLAY_RENDER_COMMAND_TYPE_RECTANGLE => {
-                Self::Rectangle(Rectangle::from(*unsafe { &value.renderData.rectangle }))
-            }
-            Clay_RenderCommandType_CLAY_RENDER_COMMAND_TYPE_TEXT => {
-                Self::Text(Text::from(*unsafe { &value.renderData.text }))
-            }
-            Clay_RenderCommandType_CLAY_RENDER_COMMAND_TYPE_BORDER => {
-                Self::Border(Border::from(*unsafe { &value.renderData.border }))
-            }
-            Clay_RenderCommandType_CLAY_RENDER_COMMAND_TYPE_IMAGE => {
-                Self::Image(unsafe { Image::from_clay_image_render_data(value.renderData.image) })
-            }
-            Clay_RenderCommandType_CLAY_RENDER_COMMAND_TYPE_SCISSOR_START => Self::ScissorStart(),
-            Clay_RenderCommandType_CLAY_RENDER_COMMAND_TYPE_SCISSOR_END => Self::ScissorEnd(),
-            Clay_RenderCommandType_CLAY_RENDER_COMMAND_TYPE_CUSTOM => Self::Custom(unsafe {
-                Custom::from_clay_custom_element_data(value.renderData.custom)
-            }),
-            _ => unreachable!(),
-        }
+        // match value.commandType {
+        //     Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_NONE => Self::None(),
+        //     Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_RECTANGLE => {
+        //         Self::Rectangle(Rectangle::from(*unsafe { &value.renderData.rectangle }))
+        //     }
+        //     Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_TEXT => {
+        //         Self::Text(Text::from(*unsafe { &value.renderData.text }))
+        //     }
+        //     Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_BORDER => {
+        //         Self::Border(Border::from(*unsafe { &value.renderData.border }))
+        //     }
+        //     Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_IMAGE => {
+        //         Self::Image(unsafe { Image::from_clay_image_render_data(value.renderData.image) })
+        //     }
+        //     Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_SCISSOR_START => Self::ScissorStart(),
+        //     Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_SCISSOR_END => Self::ScissorEnd(),
+        //     Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_CUSTOM => Self::Custom(unsafe {
+        //         Custom::from_clay_custom_element_data(value.renderData.custom)
+        //     })
+        // }
+        Self::None()
     }
 }
 
@@ -217,15 +217,4 @@ pub struct RenderCommand<'a, ImageElementData, CustomElementData> {
     /// The z-index determines the stacking order of elements.
     /// Higher values are drawn above lower values.
     pub z_index: i16,
-}
-
-impl<ImageElementData, CustomElementData> RenderCommand<'_, ImageElementData, CustomElementData> {
-    pub(crate) unsafe fn from_clay_render_command(value: Clay_RenderCommand) -> Self {
-        Self {
-            id: value.id,
-            z_index: value.zIndex,
-            bounding_box: value.boundingBox.into(),
-            config: unsafe { RenderCommandConfig::from_clay_render_command(&value) },
-        }
-    }
 }

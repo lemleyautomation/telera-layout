@@ -1,6 +1,5 @@
 use telera_layout::LayoutEngine;
 use telera_layout::TextConfig;
-use telera_layout::RenderCommand;
 
 pub fn measure_text(_text: &str, _config: &TextConfig, _user_data: &mut f32) -> (f32, f32) {
     (20.0, 12.0)
