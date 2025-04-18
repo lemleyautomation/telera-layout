@@ -1,18 +1,22 @@
 mod bindings;
-use bindings::clay::*;
+use bindings::*;
+pub use bindings::{
+    Color, Vec2, RenderCommand,
+    Rectangle, Border,
+    Image, Custom,
+    CornerRadii, BorderWidth,
+    BoundingBox
+};
 
-mod type_substitutions;
-use type_substitutions::*;
+mod text_configuration;
+use text_configuration::*;
+pub use text_configuration::TextConfig;
 
-mod text_element;
-use text_element::*;
-pub use text_element::TextConfig;
+mod element_configuration;
+pub use element_configuration::ElementConfiguration;
 
-mod config;
-use config::*;
-
-mod render_commands;
-pub use render_commands::*;
+//mod render_commands;
+//pub use render_commands::*;
 
 use std::{
     fmt::Debug, marker::PhantomData, os::raw::c_void
@@ -23,15 +27,16 @@ unsafe extern "C" fn error_handler(error_data: Clay_ErrorData) {
 }
 
 
-pub struct LayoutEngine<ImageElementData: Debug, CustomElementData: Debug>{
+pub struct LayoutEngine<ImageElementData: Debug, CustomElementData: Debug, CustomLayoutSettings>{
     _memory: Vec<u8>,
     context: *mut Clay_Context,
     text_measure_callback: Option<*const core::ffi::c_void>,
-    _phantom: PhantomData<(CustomElementData, ImageElementData)>,
+    _phantom: PhantomData<(CustomElementData, ImageElementData, CustomLayoutSettings)>,
+    dangling_element_count: u32
 }
 
 
-impl<ImageElementData: Debug + Default, CustomElementData: Debug + Default> LayoutEngine<ImageElementData, CustomElementData> {
+impl<ImageElementData: Debug + Default, CustomElementData: Debug + Default, CustomLayoutSettings> LayoutEngine<ImageElementData, CustomElementData, CustomLayoutSettings> {
     pub fn new(dimensions: (f32,f32)) -> Self{
         let memory_size = unsafe { Clay_MinMemorySize() as usize };
         let memory = vec![0; memory_size];
@@ -55,7 +60,24 @@ impl<ImageElementData: Debug + Default, CustomElementData: Debug + Default> Layo
             _memory: memory,
             context,
             text_measure_callback: None,
-            _phantom: PhantomData{}
+            _phantom: PhantomData{},
+            dangling_element_count: 0
+        }
+    }
+
+    fn dangle(&mut self){
+        self.dangling_element_count += 1;
+    }
+
+    fn undangle(&mut self){
+        if let Some(dangling_element_count) = self.dangling_element_count.checked_sub(1) {
+            self.dangling_element_count = dangling_element_count;
+        }
+    }
+
+    fn check_for_dangling_elements(&self){
+        if self.dangling_element_count != 0 || self.dangling_element_count%2 != 0  {
+            panic!("all elements must have a configuration!")
         }
     }
 
@@ -64,7 +86,7 @@ impl<ImageElementData: Debug + Default, CustomElementData: Debug + Default> Layo
         userdata: T,
         callback: F,
     ) where
-        F: Fn(&str, &TextConfig, &'clay mut T) -> (f32, f32) + 'static,
+        F: Fn(&str, &TextConfig, &'clay mut T) -> Vec2 + 'static,
         T: 'clay,
     {
         // Box the callback and userdata together
@@ -102,9 +124,9 @@ impl<ImageElementData: Debug + Default, CustomElementData: Debug + Default> Layo
         }
     }
 
-    pub fn set_layout_dimensions(&self, dimensions: (f32,f32)) {
+    pub fn set_layout_dimensions(&self, width: f32, height: f32) {
         unsafe {
-            Clay_SetLayoutDimensions(dimensions.into());
+            Clay_SetLayoutDimensions(Clay_Dimensions { width, height });
         }
     }
 
@@ -115,78 +137,86 @@ impl<ImageElementData: Debug + Default, CustomElementData: Debug + Default> Layo
         };
     }
 
-    pub fn end_layout<'commands>(&mut self) -> Vec<RenderCommand::<'commands, ImageElementData, CustomElementData>> {
+    pub fn end_layout<'render_pass>(&mut self) -> Vec<RenderCommand::<'render_pass, ImageElementData, CustomElementData, CustomLayoutSettings>> {
+        self.check_for_dangling_elements();
+
         let array = unsafe {Clay_EndLayout()};
         
         let array = unsafe { core::slice::from_raw_parts(array.internalArray, array.length as usize) };
 
-        let commands = array.iter().map(|command| {
-            RenderCommand { 
-                id: command.id, 
-                bounding_box: [
-                    command.boundingBox.x, 
-                    command.boundingBox.y, 
-                    command.boundingBox.width, 
-                    command.boundingBox.height
-                ], 
-                z_index: command.zIndex,
-                config: RenderCommandConfig::from(command),
+        array.iter().map(|command| {
+            match command.commandType {
+                Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_NONE => RenderCommand::None,
+                Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_RECTANGLE => RenderCommand::Rectangle(command.into()),
+                Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_BORDER => RenderCommand::Border(command.into()),
+                Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_TEXT => RenderCommand::Text(command.into()),
+                Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_IMAGE => RenderCommand::Image(command.into()),
+                Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_CUSTOM => RenderCommand::Custom(command.into()),
+                Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_SCISSOR_START => RenderCommand::ScissorStart,
+                Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_SCISSOR_END => RenderCommand::ScissorEnd
             }
-        }).collect::<Vec<RenderCommand::<ImageElementData, CustomElementData>>>();
-
-        Vec::new()
+        }).collect::<Vec<RenderCommand::<ImageElementData, CustomElementData, CustomLayoutSettings>>>()
     }
 
-    pub fn open_element<'render_pass>(&self) -> ConfigBuilder<'render_pass, ImageElementData, CustomElementData>{
+    pub fn open_element(&mut self){
+        self.dangle();
         unsafe {
             Clay__OpenElement();
         }
-        ConfigBuilder::<'render_pass, ImageElementData, CustomElementData>::default()
     }
 
-    pub fn config<'render_pass>(&self, config: ConfigBuilder<'render_pass, ImageElementData, CustomElementData>){
-        unsafe {
-            Clay__ConfigureOpenElement(config.into());
-        }
-    }
-    
-    pub fn close_element(&self){
+    pub fn close_element(&mut self){
+        self.check_for_dangling_elements();
+
         unsafe {
             Clay__CloseElement();
         }
     }
 
-    pub fn open_text(&self) -> TextConfig{
-        TextConfig::new()
-    }
-
-    pub fn close_text<'render>(&mut self, content: &'render str, config: TextElementConfig){
-        unsafe { Clay__OpenTextElement(content.into(), config.into() ) };
-    }
-
-    
-
-    pub fn pointer_state(&self, position: (f32,f32), is_down: bool) {
+    pub fn configure_element<'render_pass>(&mut self, config: &ElementConfiguration){
+        self.undangle();
         unsafe {
-            Clay_SetPointerState(position.into(), is_down);
+            Clay__ConfigureOpenElement(config.into());
+        }
+    }
+    
+    pub fn add_text_element<'render_pass>(&mut self, content: &'render_pass str, config: &'render_pass TextConfig, statically_allicated: bool){
+        self.check_for_dangling_elements();
+        let text_config = unsafe { Clay__StoreTextElementConfig(config.into()) };
+        unsafe { 
+            Clay__OpenTextElement( 
+                Clay_String { 
+                    isStaticallyAllocated: statically_allicated, 
+                    length: content.len() as i32, 
+                    chars: content.as_ptr() as *const i8
+                }, 
+                text_config 
+            ) 
+        };
+    }
+
+    pub fn pointer_state(&self, x: f32, y: f32, is_down: bool) {
+        unsafe {
+            Clay_SetPointerState(Clay_Vector2 { x, y }, is_down);
         }
     }
 
     pub fn update_scroll_containers(
         &self,
         drag_scrolling_enabled: bool,
-        scroll_delta: (f32, f32),
+        delta_x: f32,
+        delta_y: f32,
         delta_time: f32,
     ) {
         unsafe {
-            Clay_UpdateScrollContainers(drag_scrolling_enabled, scroll_delta.into(), delta_time);
+            Clay_UpdateScrollContainers(drag_scrolling_enabled, Clay_Vector2 { x: delta_x, y: delta_y }, delta_time);
         }
     }
 
-    pub fn scroll_container_data(&self, id: Id) -> Option<Clay_ScrollContainerData> {
+    pub fn scroll_container_data(&self, id: Clay_ElementId) -> Option<Clay_ScrollContainerData> {
         unsafe {
             Clay_SetCurrentContext(self.context);
-            let scroll_container_data = Clay_GetScrollContainerData(id.into());
+            let scroll_container_data = Clay_GetScrollContainerData(id);
 
             if scroll_container_data.found {
                 Some(scroll_container_data)
@@ -201,15 +231,15 @@ impl<ImageElementData: Debug + Default, CustomElementData: Debug + Default> Layo
         unsafe { Clay_Hovered() }
     }
 
-    pub fn pointer_over(&self, cfg: Id) -> bool {
-        unsafe { Clay_PointerOver(cfg.into()) }
+    pub fn pointer_over(&self, cfg: Clay_ElementId) -> bool {
+        unsafe { Clay_PointerOver(cfg) }
     }
 
-    fn element_data(id: Id) -> Clay_ElementData {
-        unsafe { Clay_GetElementData(id.into()) }
+    fn element_data(id: Clay_ElementId) -> Clay_ElementData {
+        unsafe { Clay_GetElementData(id) }
     }
 
-    pub fn bounding_box(&self, id: Id) -> Option<(f32,f32,f32,f32)> {
+    pub fn bounding_box(&self, id: Clay_ElementId) -> Option<BoundingBox> {
         let element_data = Self::element_data(id);
 
         if element_data.found {
@@ -218,4 +248,13 @@ impl<ImageElementData: Debug + Default, CustomElementData: Debug + Default> Layo
             None
         }
     }
+}
+
+/// macro to simplify layout creation
+/// Causes code to be nested instead of flat
+#[macro_export]
+macro_rules! element {
+    ( ($layout:expr), {$children:expr} ) => {
+        
+    };
 }

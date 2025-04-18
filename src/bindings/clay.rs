@@ -2881,7 +2881,7 @@ const _: () = {
     ["Offset of field: Clay_ElementData::found"]
         [::std::mem::offset_of!(Clay_ElementData, found) - 16usize];
 };
-#[repr(u8)]
+#[repr(i32)]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub enum Clay_RenderCommandType {
     CLAY_RENDER_COMMAND_TYPE_NONE = 0,
@@ -2905,7 +2905,7 @@ pub struct Clay_RenderCommand {
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of Clay_RenderCommand"][::std::mem::size_of::<Clay_RenderCommand>() - 80usize];
+    ["Size of Clay_RenderCommand"][::std::mem::size_of::<Clay_RenderCommand>() - 88usize];
     ["Alignment of Clay_RenderCommand"][::std::mem::align_of::<Clay_RenderCommand>() - 8usize];
     ["Offset of field: Clay_RenderCommand::boundingBox"]
         [::std::mem::offset_of!(Clay_RenderCommand, boundingBox) - 0usize];
@@ -2918,7 +2918,7 @@ const _: () = {
     ["Offset of field: Clay_RenderCommand::zIndex"]
         [::std::mem::offset_of!(Clay_RenderCommand, zIndex) - 76usize];
     ["Offset of field: Clay_RenderCommand::commandType"]
-        [::std::mem::offset_of!(Clay_RenderCommand, commandType) - 78usize];
+        [::std::mem::offset_of!(Clay_RenderCommand, commandType) - 80usize];
 };
 impl Default for Clay_RenderCommand {
     fn default() -> Self {

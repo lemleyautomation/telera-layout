@@ -1,22 +1,12 @@
 use std::os::raw::c_void;
 
-use crate::bindings::clay::*;
-
-pub struct TextElementConfig {
-    inner: *mut Clay_TextElementConfig,
-}
-
-impl From<TextElementConfig> for *mut Clay_TextElementConfig {
-    fn from(value: TextElementConfig) -> Self {
-        value.inner
-    }
-}
+use crate::bindings::*;
 
 /// Configuration settings for rendering text elements.
 #[derive(Debug, Clone, Copy)]
 pub struct TextConfig {
     /// The color of the text.
-    pub color: [f32;4],
+    pub color: Color,
     /// Clay does not manage fonts. It is up to the user to assign a unique ID to each font
     /// and provide it via the [`font_id`](Text::font_id) field.
     pub font_id: u16,
@@ -33,15 +23,14 @@ pub struct TextConfig {
 }
 
 impl TextConfig {
-    /// Creates a new `TextConfig` instance with default values.
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Sets the text color.
     #[inline]
-    pub fn color(&mut self, r:f32, g:f32, b:f32, a:f32) -> &mut Self {
-        self.color = [r,g,b,a];
+    pub fn color(&mut self, color: Color) -> &mut Self {
+        self.color = color;
         self
     }
 
@@ -87,37 +76,31 @@ impl TextConfig {
         self
     }
 
-    /// Finalizes the text configuration and stores it in memory.
+    /// Finalizes the text configuration
     #[inline]
-    pub fn end(&self) -> TextElementConfig {
-        let memory = unsafe { Clay__StoreTextElementConfig((*self).into()) };
-        TextElementConfig { inner: memory }
+    pub fn end(self) -> Self {
+        self
     }
 }
 
 impl Default for TextConfig {
     fn default() -> Self {
         Self {
-            color: [0.0,0.0,0.0,0.0],
+            color: Color::default(),
             font_id: 0,
-            font_size: 0,
+            font_size: 12,
             letter_spacing: 0,
-            line_height: 0,
+            line_height: 14,
             wrap_mode: Clay_TextElementConfigWrapMode::CLAY_TEXT_WRAP_WORDS,
             alignment: Clay_TextAlignment::CLAY_TEXT_ALIGN_LEFT
         }
     }
 }
 
-impl From<TextConfig> for Clay_TextElementConfig {
-    fn from(value: TextConfig) -> Self {
+impl From<&TextConfig> for Clay_TextElementConfig {
+    fn from(value: &TextConfig) -> Self {
         Self {
-            textColor: Clay_Color{
-                r: value.color[0],
-                g: value.color[1],
-                b: value.color[2],
-                a: value.color[3],
-            },
+            textColor: value.color.into(),
             fontId: value.font_id,
             fontSize: value.font_size,
             letterSpacing: value.letter_spacing,
@@ -149,7 +132,7 @@ pub unsafe extern "C" fn measure_text_trampoline_user_data<'a, F, T>(
     user_data: *mut core::ffi::c_void,
 ) -> Clay_Dimensions
 where
-    F: Fn(&str, &TextConfig, &'a mut T) -> (f32,f32) + 'a,
+    F: Fn(&str, &TextConfig, &'a mut T) -> Vec2 + 'a,
     T: 'a,
 {
     let text = core::str::from_utf8_unchecked(core::slice::from_raw_parts(

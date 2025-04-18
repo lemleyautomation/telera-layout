@@ -150,11 +150,13 @@ static inline void Clay__SuppressUnusedLatchDefinitionVariableWarning(void) { (v
 
 #define CLAY_TEXT(text, textConfig) Clay__OpenTextElement(text, textConfig)
 
+#define CLAY_PACKED_ENUM enum
+
 #ifdef __cplusplus
 
 #define CLAY__INIT(type) type
 
-#define CLAY_PACKED_ENUM enum : uint8_t
+// #define CLAY_PACKED_ENUM enum : uint8_t
 
 #define CLAY__DEFAULT_STRUCT {}
 
@@ -162,11 +164,11 @@ static inline void Clay__SuppressUnusedLatchDefinitionVariableWarning(void) { (v
 
 #define CLAY__INIT(type) (type)
 
-#if defined(_MSC_VER) && !defined(__clang__)
-#define CLAY_PACKED_ENUM __pragma(pack(push, 1)) enum __pragma(pack(pop))
-#else
-#define CLAY_PACKED_ENUM enum __attribute__((__packed__))
-#endif
+// #if defined(_MSC_VER) && !defined(__clang__)
+// #define CLAY_PACKED_ENUM __pragma(pack(push, 1)) enum __pragma(pack(pop))
+// #else
+// #define CLAY_PACKED_ENUM enum __attribute__((__packed__))
+// #endif
 
 #if __STDC_VERSION__ >= 202311L
 #define CLAY__DEFAULT_STRUCT {}
@@ -1471,7 +1473,7 @@ uint32_t Clay__HashStringContentsWithConfig(Clay_String *text, Clay_TextElementC
         hash += (hash << 10);
         hash ^= (hash >> 6);
         hash += text->length;
-        hash += (hash << 10);
+        hash += (hash << 10);   
         hash ^= (hash >> 6);
     } else {
         hash = Clay__HashData((const uint8_t *)text->chars, text->length) % UINT32_MAX;

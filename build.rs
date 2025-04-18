@@ -22,7 +22,7 @@ fn main() {
 
     bindgen::Builder::default()
         .header("src/bindings/clay.h")
-        .rustified_enum(".*")
+        .rustified_enum(".*" )
         .derive_debug(true )
         .derive_default(true)
         .generate()
