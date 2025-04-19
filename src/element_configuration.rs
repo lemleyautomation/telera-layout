@@ -418,11 +418,8 @@ impl ElementConfiguration{
         self.decleration.floating.attachTo = Clay_FloatingAttachToElement::CLAY_ATTACH_TO_ROOT;
         self
     }
-    pub fn image<'render_pass, ImageElementData>(&mut self, image: &'render_pass ImageElementData) -> &mut Self {
+    pub fn image<'render_pass, ImageElementData>(&mut self, image: &'render_pass ImageElementData, width: f32, height:f32) -> &mut Self {
         self.decleration.image.imageData = image as *const ImageElementData as *mut c_void;
-        self
-    }
-    pub fn image_source_dimensions(&mut self, width: f32, height:f32) -> &mut Self{
         self.decleration.image.sourceDimensions = Clay_Dimensions {width, height };
         self
     }

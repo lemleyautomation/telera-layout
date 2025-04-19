@@ -68,6 +68,7 @@ pub enum FlowControlCommand<CustomEvent: FromStr+Clone+PartialEq>{
 #[derive(Clone, Debug, Display, PartialEq)]
 pub enum ConfigCommand{
     Id(String),
+
     GrowAll,
     GrowX,
     GrowXmin(f32),
@@ -85,33 +86,43 @@ pub enum ConfigCommand{
     FixedY(f32),
     PercentX(f32),
     PercentY(f32),
+
     PaddingAll(u16),
     PaddingTop(u16),
     PaddingBottom(u16),
     PaddingLeft(u16),
     PaddingRight(u16),
+
     ChildGap(u16),
+
     DirectionTTB,
     DirectionLTR,
+
     ChildAlignmentXLeft,
     ChildAlignmentXRight,
     ChildAlignmentXCenter,
     ChildAlignmentYTop,
     ChildAlignmentYCenter,
     ChildAlignmentYBottom,
+
     Color(Color),
+
     RadiusAll(f32),
     RadiusTopLeft(f32),
     RadiusTopRight(f32),
     RadiusBottomRight(f32),
     RadiusBottomLeft(f32),
+
     BorderAll(f32, Color),
     BorderTop(f32, Option<Color>),
     BorderLeft(f32, Option<Color>),
     BorderBottom(f32, Option<Color>),
     BorderRight(f32, Option<Color>),
     BorderBetweenChildren(f32, Option<Color>),
+
     Scroll(bool, bool),
+
+    Image(String, f32, f32),
 
     // todo:
     // floating elements

@@ -1,12 +1,78 @@
 <!ELEMENT page (element|grow|fragment|fragment-config)*>
 <!ATTLIST page name CDATA #REQUIRED>
 
-<!ELEMENT element (list|match|layout|hovered|clicked|text|image|element|grow|grow-x|grow-y|call|if|else)*>
+<!ELEMENT element (element|config|text|hovered|clicked|grow|use|list)*>
 <!ATTLIST element id CDATA "element">
 <!ATTLIST element if CDATA #IMPLIED>
 <!ATTLIST element if-not CDATA #IMPLIED>
 
-<!ELEMENT grow EMPTY>
+<!ELEMENT text-element (text-config,(content|dyn-content))>
+
+<!ELEMENT element-config (id|direction|width|height|scroll|padding|child-gap|align-children|radius|border|(color|dyn-color)|hovered|clicked)*>
+
+<!ELEMENT text-config (font-id?,(text-align-left|text-align-right|text-align-center)?,font-size,line-height?,(color|dyn-color))>
+
+<!ELEMENT reusable (element|text-element|element-config|text-config)>
+<!ATTLIST reusable name CDATA #REQUIRED>
+
+<!ELEMENT use (get-bool|get-numeric|get-text|get-image|get-color|get-event|set-bool|set-numeric|set-text|set-image|set-color|set-event)*>
+<!ATTLIST use name CDATA #REQUIRED>
+<!ATTLIST use if CDATA #IMPLIED>
+<!ATTLIST use if-not CDATA #IMPLIED>
+
+<!ELEMENT set-bool EMPTY>
+<!ATTLIST set-bool local CDATA #REQUIRED>
+<!ATTLIST set-bool to (true|false) #REQUIRED>
+
+<!ELEMENT set-numeric EMPTY>
+<!ATTLIST set-numeric local CDATA #REQUIRED>
+<!ATTLIST set-numeric to CDATA #REQUIRED>
+
+<!ELEMENT set-text EMPTY>
+<!ATTLIST set-text local CDATA #REQUIRED>
+<!ATTLIST set-text to CDATA #REQUIRED>
+
+<!ELEMENT set-image EMPTY>
+<!ATTLIST set-image local CDATA #REQUIRED>
+<!ATTLIST set-image to CDATA #REQUIRED>
+
+<!ELEMENT set-color EMPTY>
+<!ATTLIST set-color local CDATA #REQUIRED>
+<!ATTLIST set-color to CDATA #REQUIRED>
+
+<!ELEMENT set-event EMPTY>
+<!ATTLIST set-event local CDATA #REQUIRED>
+<!ATTLIST set-event to CDATA #REQUIRED>
+
+<!ELEMENT get-bool EMPTY>
+<!ATTLIST get-bool local CDATA #REQUIRED>
+<!ATTLIST get-bool from CDATA #REQUIRED>
+
+<!ELEMENT get-numeric EMPTY>
+<!ATTLIST get-numeric local CDATA #REQUIRED>
+<!ATTLIST get-numeric from CDATA #REQUIRED>
+
+<!ELEMENT get-text EMPTY>
+<!ATTLIST get-text local CDATA #REQUIRED>
+<!ATTLIST get-text from CDATA #REQUIRED>
+
+<!ELEMENT get-image EMPTY>
+<!ATTLIST get-image local CDATA #REQUIRED>
+<!ATTLIST get-image from CDATA #REQUIRED>
+
+<!ELEMENT get-color EMPTY>
+<!ATTLIST get-color local CDATA #REQUIRED>
+<!ATTLIST get-color from CDATA #REQUIRED>
+
+<!ELEMENT get-event EMPTY>
+<!ATTLIST get-event local CDATA #REQUIRED>
+<!ATTLIST get-event from CDATA #REQUIRED>
+
+<!ELEMENT list (list-member*,element)>
+<!ATTLIST list src CDATA #REQUIRED>
+
+<!ELEMENT list-member EMPTY>
+<!ATTLIST list-member name CDATA #REQUIRED>
 
 <!ELEMENT hovered (layout|element|id|direction|width|height|padding|child-gap|align-children|radius|border|color)*>
 <!ATTLIST hovered emit CDATA #IMPLIED>
@@ -14,13 +80,38 @@
 <!ELEMENT clicked (layout|element|id|direction|width|height|padding|child-gap|align-children|radius|border|color)*>
 <!ATTLIST clicked emit CDATA #IMPLIED>
 
-<!ELEMENT layout (id|direction|width|height|scroll|padding|child-gap|align-children|radius|border|(color|dyn-color)|hovered|clicked)*>
+<!ELEMENT grow EMPTY>
 
 <!ELEMENT id EMPTY>
 <!ATTLIST id is CDATA #REQUIRED>
 
-<!ELEMENT direction EMPTY>
-<!ATTLIST direction is (rtl|ttb) "rtl">
+<!ELEMENT width-grow EMPTY>
+<!ATTLIST width-grow min CDATA #IMPLIED>
+<!ATTLIST width-grow max CDATA #IMPLIED>
+
+<!ELEMENT width-fit EMPTY>
+<!ATTLIST width-fit min CDATA #IMPLIED>
+<!ATTLIST width-fit max CDATA #IMPLIED>
+
+<!ELEMENT width-fixed EMPTY>
+<!ATTLIST width-fixed at CDATA #IMPLIED>
+
+<!ELEMENT width-percent (#PCDATA)>
+<!ATTLIST width-percent at CDATA #IMPLIED>
+
+<!ELEMENT height-grow EMPTY>
+<!ATTLIST height-grow min CDATA #IMPLIED>
+<!ATTLIST height-grow max CDATA #IMPLIED>
+
+<!ELEMENT height-fit EMPTY>
+<!ATTLIST height-fit min CDATA #IMPLIED>
+<!ATTLIST height-fit max CDATA #IMPLIED>
+
+<!ELEMENT height-fixed EMPTY>
+<!ATTLIST height-fixed at CDATA #IMPLIED>
+
+<!ELEMENT height-percent (#PCDATA)>
+<!ATTLIST height-percent at CDATA #IMPLIED>
 
 <!ELEMENT padding EMPTY>
 <!ATTLIST padding all CDATA #IMPLIED>
@@ -32,21 +123,12 @@
 <!ELEMENT child-gap EMPTY>
 <!ATTLIST child-gap is CDATA #REQUIRED>
 
+<!ELEMENT direction EMPTY>
+<!ATTLIST direction is (rtl|ttb) "rtl">
+
 <!ELEMENT align-children EMPTY>
 <!ATTLIST align-children x (left|right|center) "left">
 <!ATTLIST align-children y (top|bottom|center) "bottom">
-
-<!ELEMENT width EMPTY>
-<!ATTLIST width type (fit|grow|fixed|percent) #IMPLIED>
-<!ATTLIST width min CDATA #IMPLIED>
-<!ATTLIST width max CDATA #IMPLIED>
-<!ATTLIST width at CDATA #IMPLIED>
-
-<!ELEMENT height EMPTY>
-<!ATTLIST height type (fit|grow|fixed|percent) #IMPLIED>
-<!ATTLIST height min CDATA #IMPLIED>
-<!ATTLIST height max CDATA #IMPLIED>
-<!ATTLIST height at CDATA #IMPLIED>
 
 <!ELEMENT color EMPTY>
 <!ATTLIST color is CDATA "rgb(0,96,255)">
@@ -74,7 +156,10 @@
 <!ATTLIST scroll vertical (true|false) "false">
 <!ATTLIST scroll horizontal (true|false) "false">
 
-<!ELEMENT text (font-id?,(text-align-left|text-align-right|text-align-center)?,font-size,line-height?,(color|dyn-color),(content|dyn-content))>
+<!ELEMENT image EMPTY>
+<!ATTLIST image src CDATA #REQUIRED>
+<!ATTLIST image src-width CDATA #REQUIRED>
+<!ATTLIST image src-height CDATA #REQUIRED>
 
 <!ELEMENT font-id EMPTY>
 <!ATTLIST font-id is CDATA "0">
@@ -94,46 +179,3 @@
 
 <!ELEMENT dyn-content EMPTY>
 <!ATTLIST dyn-content from CDATA #REQUIRED>
-
-<!ELEMENT image (src-data, src-dim)>
-
-<!ELEMENT src-dim EMPTY>
-<!ATTLIST src-dim width CDATA #REQUIRED>
-<!ATTLIST src-dim height CDATA #REQUIRED>
-
-<!ELEMENT src-data EMPTY>
-<!ATTLIST src-data src CDATA #IMPLIED>
-<!ATTLIST src-data src-var CDATA #IMPLIED>
-
-<!ELEMENT set EMPTY>
-<!ATTLIST set local CDATA #REQUIRED>
-<!ATTLIST set bool (true|false) #IMPLIED>
-<!ATTLIST set numeric CDATA #IMPLIED>
-<!ATTLIST set text CDATA #IMPLIED>
-<!ATTLIST set image CDATA #IMPLIED>
-<!ATTLIST set color CDATA "rgb(0,0,0)">
-
-<!ELEMENT get EMPTY>
-<!ATTLIST get local CDATA #REQUIRED>
-<!ATTLIST get from CDATA #REQUIRED>
-
-<!ELEMENT fragment (element*)>
-<!ATTLIST fragment name CDATA #REQUIRED>
-
-<!ELEMENT fragment-config (direction|width|height|padding|child-gap|align-children|radius|border|(color|dyn-color)|hovered|clicked)*>
-<!ATTLIST fragment-config name CDATA #REQUIRED>
-
-<!ELEMENT call (get|set)*>
-<!ATTLIST call name CDATA #REQUIRED>
-<!ATTLIST call if CDATA #IMPLIED>
-<!ATTLIST call if-not CDATA #IMPLIED>
-
-<!ELEMENT match (layout|element|id|direction|width|height|padding|child-gap|align-children|radius|border|color)*>
-<!ATTLIST match if CDATA #REQUIRED>
-<!ATTLIST match case CDATA #REQUIRED>
-
-<!ELEMENT list (list-member*,element)>
-<!ATTLIST list src CDATA #REQUIRED>
-
-<!ELEMENT list-member EMPTY>
-<!ATTLIST list-member name CDATA #REQUIRED>
