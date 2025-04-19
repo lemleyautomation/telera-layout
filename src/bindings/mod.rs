@@ -8,7 +8,7 @@ mod clay;
 
 pub use clay::*;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Color{
     pub r: f32,
     pub g: f32,

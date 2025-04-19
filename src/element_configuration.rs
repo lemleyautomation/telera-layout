@@ -237,7 +237,7 @@ impl ElementConfiguration{
         self.decleration.layout.childAlignment.y = Clay_LayoutAlignmentY::CLAY_ALIGN_Y_TOP;
         self
     }
-    pub fn align_children_x_bottom(&mut self) -> &mut Self {
+    pub fn align_children_y_bottom(&mut self) -> &mut Self {
         self.decleration.layout.childAlignment.y = Clay_LayoutAlignmentY::CLAY_ALIGN_Y_BOTTOM;
         self
     }
@@ -434,6 +434,7 @@ impl ElementConfiguration{
         self.decleration.userData = custom_layout_settings as *const CustomLayoutSettings as *mut c_void;
         self
     }
+    pub fn parse(&mut self){}
     pub fn end(self) -> Self {
         self
     }

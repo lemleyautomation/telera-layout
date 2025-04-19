@@ -1,10 +1,12 @@
 use std::{collections::HashMap, fmt::Debug, fs, path::Path, str::FromStr};
 
+use quick_xml::events::Event;
+use quick_xml::reader::Reader;
 use quick_xml::events::BytesStart;
 use quick_xml::Decoder;
 use strum_macros::{Display, EnumString};
 
-use crate::{bindings::true_, ElementConfiguration, LayoutEngine, TextConfig};
+use crate::{Color, ElementConfiguration, LayoutEngine, TextConfig};
 
 #[derive(Default, Clone, Debug, PartialEq)]
 pub enum XMLType<'render_pass, ImageElementData, CustomEvent: FromStr+Clone+PartialEq>{
@@ -19,20 +21,28 @@ pub enum XMLType<'render_pass, ImageElementData, CustomEvent: FromStr+Clone+Part
     None,
 }
 
-#[derive(Clone, Debug, Display, Default, PartialEq)]
-pub enum LayoutCommands<CustomEvent: FromStr+Clone+PartialEq>{
-    #[default]
-    None,
-    DefaultText(String),
+#[derive(Clone, Debug, Display, PartialEq)]
+pub enum LayoutCommandType<CustomEvent: FromStr+Clone+PartialEq>{
+    FlowControl(FlowControlCommand<CustomEvent>),
+    ElementConfig(ConfigCommand),
+    TextConfig(TextConfigCommand),
+}
 
+#[derive(Clone, Debug, Display, PartialEq)]
+pub enum FlowControlCommand<CustomEvent: FromStr+Clone+PartialEq>{
+    ElementOpened(Option<String>),
+    ElementClosed,
+
+    ConfigOpened(Option<String>),
+    ConfigClosed,
+
+    TextConfigOpened(Option<String>),
+    TextConfigClosed,
+    
     ListOpened(String),
     ListClosed,
     ListMember(String),
 
-    ElementOpened(Option<String>),
-    ElementClosed,
-    ConfigOpened,
-    ConfigClosed,
     CallOpened(String),
     CallClosed,
 
@@ -42,7 +52,8 @@ pub enum LayoutCommands<CustomEvent: FromStr+Clone+PartialEq>{
     SetNumeric(String, f32),
     SetText(String, String),
     SetImage(String),
-    SetColor(String, [f32;4]),
+    SetColor(String, Color),
+    SetListLength(String, usize),
 
     IfOpened(String),
     IfClosed,
@@ -52,95 +63,84 @@ pub enum LayoutCommands<CustomEvent: FromStr+Clone+PartialEq>{
 
     ClickedOpened(Option<CustomEvent>),
     ClickedClosed,
+}
 
-    FitX,
-    FitXmin(f32),
-    FitXminmax(f32, f32),
-    FitY,
-    FitYmin(f32),
-    FitYminmax(f32, f32),
-
+#[derive(Clone, Debug, Display, PartialEq)]
+pub enum ConfigCommand{
+    Id(String),
+    GrowAll,
     GrowX,
     GrowXmin(f32),
     GrowXminmax(f32, f32),
     GrowY,
     GrowYmin(f32),
     GrowYminmax(f32, f32),
-
+    FitX,
+    FitXmin(f32),
+    FitXminmax(f32, f32),
+    FitY,
+    FitYmin(f32),
+    FitYminmax(f32, f32),
     FixedX(f32),
     FixedY(f32),
-
     PercentX(f32),
     PercentY(f32),
-
-    GrowAll,
-
-    PaddingAll(f32),
-    PaddingTop(f32),
-    PaddingBottom(f32),
-    PaddingLeft(f32),
-    PaddingRight(f32),
-
+    PaddingAll(u16),
+    PaddingTop(u16),
+    PaddingBottom(u16),
+    PaddingLeft(u16),
+    PaddingRight(u16),
+    ChildGap(u16),
     DirectionTTB,
     DirectionLTR,
-
-    Id(String),
-
-    ChildGap(u16),
-
     ChildAlignmentXLeft,
     ChildAlignmentXRight,
     ChildAlignmentXCenter,
-
     ChildAlignmentYTop,
     ChildAlignmentYCenter,
     ChildAlignmentYBottom,
-
-    Color([f32;4]),
-
+    Color(Color),
     RadiusAll(f32),
     RadiusTopLeft(f32),
     RadiusTopRight(f32),
     RadiusBottomRight(f32),
     RadiusBottomLeft(f32),
-
-    BorderAll(f32,[f32;4]),
-    BorderTop(f32, Option<[f32;4]>),
-    BorderLeft(f32, Option<[f32;4]>),
-    BorderBottom(f32, Option<[f32;4]>),
-    BorderRight(f32, Option<[f32;4]>),
-    BorderBetweenChildren(f32, Option<[f32;4]>),
-
-    TextOpened,
-    TextClosed,
-    FontId(u16),
-    TextAlignRight,
-    TextAlignLeft,
-    TextAlignCenter,
-    TextLineHeight(u16),
-    FontSize(u16),
-    TextContent(String),
-    DynamicTextContent(String),
-    TextColor([f32;4]),
-
+    BorderAll(f32, Color),
+    BorderTop(f32, Option<Color>),
+    BorderLeft(f32, Option<Color>),
+    BorderBottom(f32, Option<Color>),
+    BorderRight(f32, Option<Color>),
+    BorderBetweenChildren(f32, Option<Color>),
     Scroll(bool, bool),
 
-
     // todo:
-    // images
     // floating elements
+    // images
     // custom elements
-    // scolling elements
     // custom layouts
-    //
-    // clicked
+}
+
+#[derive(Clone, Debug, Display, PartialEq)]
+pub enum TextConfigCommand{
+    DefaultText(String),
+    FontId(u16),
+    AlignRight,
+    AlignLeft,
+    AlignCenter,
+    LineHeight(u16),
+    FontSize(u16),
+    Content(String),
+    DynamicContent(String),
+    Color(Color),
 }
 
 #[derive(Default)]
 enum ParsingMode{
     #[default]
     Normal,
-    Fragment
+    Fragment,
+    ElementConfig,
+    Textconfig,
 }
 
 #[allow(non_camel_case_types)]
@@ -218,8 +218,8 @@ fn set_sizing_command<'a, UserEvents: FromStr+Clone+PartialEq>(bytes_start: &'a 
     match size_type {
         None => {
             match horizontal {
-                true => parser.push(LayoutCommands::FitX),
-                false => parser.push(LayoutCommands::FitY),
+                true => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::FitX)),
+                false => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::FitY)),
             }
             return;
         }
@@ -231,22 +231,22 @@ fn set_sizing_command<'a, UserEvents: FromStr+Clone+PartialEq>(bytes_start: &'a 
                             if let Some(max) = bytes_start.cdata("max") {
                                 if let Ok(max) = f32::from_str(&max) {
                                     match horizontal {
-                                        true => parser.push(LayoutCommands::FitXminmax(min, max)),
-                                        false => parser.push(LayoutCommands::FitYminmax(min, max)),
+                                        true => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::FitXminmax(min, max))),
+                                        false => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::FitYminmax(min, max))),
                                     }
                                     return;
                                 }
                             }
                             match horizontal {
-                                true => parser.push(LayoutCommands::FitXmin(min)),
-                                false => parser.push(LayoutCommands::FitYmin(min)),
+                                true => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::FitXmin(min))),
+                                false => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::FitYmin(min))),
                             }
                             return;
                         }
                     }
                     match horizontal {
-                        true => parser.push(LayoutCommands::FitX),
-                        false => parser.push(LayoutCommands::FitY),
+                        true => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::FitX)),
+                        false => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::FitY)),
                     }
                     return;
                 }
@@ -256,22 +256,22 @@ fn set_sizing_command<'a, UserEvents: FromStr+Clone+PartialEq>(bytes_start: &'a 
                             if let Some(max) = bytes_start.cdata("max") {
                                 if let Ok(max) = f32::from_str(&max) {
                                     match horizontal {
-                                        true => parser.push(LayoutCommands::GrowXminmax(min, max)),
-                                        false => parser.push(LayoutCommands::GrowYminmax(min, max)),
+                                        true => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::GrowXminmax(min, max))),
+                                        false => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::GrowYminmax(min, max))),
                                     }
                                     return;
                                 }
                             }
                             match horizontal {
-                                true => parser.push(LayoutCommands::GrowXmin(min)),
-                                false => parser.push(LayoutCommands::GrowYmin(min)),
+                                true => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::GrowXmin(min))),
+                                false => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::GrowYmin(min))),
                             }
                             return;
                         }
                     }
                     match horizontal {
-                        true => parser.push(LayoutCommands::GrowX),
-                        false => parser.push(LayoutCommands::GrowY),
+                        true => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::GrowX)),
+                        false => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::GrowY)),
                     }
                     return;
                 }
@@ -279,15 +279,15 @@ fn set_sizing_command<'a, UserEvents: FromStr+Clone+PartialEq>(bytes_start: &'a 
                     if let Some(at) = bytes_start.cdata("at") {
                         if let Ok(at) = f32::from_str(&at) {
                             match horizontal {
-                                true => parser.push(LayoutCommands::FixedX(at)),
-                                false => parser.push(LayoutCommands::FixedY(at)),
+                                true => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::FixedX(at))),
+                                false => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::FixedY(at))),
                             }
                             return;
                         }
                     }
                     match horizontal {
-                        true => parser.push(LayoutCommands::FitX),
-                        false => parser.push(LayoutCommands::FitY),
+                        true => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::FitX)),
+                        false => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::FitY)),
                     }
                     return;
                 }
@@ -295,15 +295,15 @@ fn set_sizing_command<'a, UserEvents: FromStr+Clone+PartialEq>(bytes_start: &'a 
                     if let Some(at) = bytes_start.cdata("at") {
                         if let Ok(at) = f32::from_str(&at) {
                             match horizontal {
-                                true => parser.push(LayoutCommands::PercentX(at)),
-                                false => parser.push(LayoutCommands::PercentY(at)),
+                                true => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::PercentX(at))),
+                                false => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::PercentY(at))),
                             }
                             return;
                         }
                     }
                     match horizontal {
-                        true => parser.push(LayoutCommands::FitX),
-                        false => parser.push(LayoutCommands::FitY),
+                        true => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::FitX)),
+                        false => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::FitY)),
                     }
                     return;
                 }
@@ -313,13 +313,16 @@ fn set_sizing_command<'a, UserEvents: FromStr+Clone+PartialEq>(bytes_start: &'a 
 }
 
 #[derive(Default)]
-struct Parser<UserEvents: FromStr+Clone+PartialEq>{
-    pub mode: ParsingMode,
-    xml_stack: Vec<LayoutCommands<UserEvents>>,
+pub struct Parser<UserEvents: FromStr+Clone+PartialEq>{
+    mode: ParsingMode,
 
-    fragment: Vec<LayoutCommands<UserEvents>>,
+    current_page: Vec<LayoutCommandType<UserEvents>>,
+    current_page_name: String,
+    pages: HashMap<String, Vec<LayoutCommandType<UserEvents>>>,
+
+    current_fragment: Vec<LayoutCommandType<UserEvents>>,
     fragment_name: String,
-    fragments: HashMap<String, Vec<LayoutCommands<UserEvents>>>,
+    fragments: HashMap<String, Vec<LayoutCommandType<UserEvents>>>,
 
     nesting_level: i32,
     xml_nesting_stack: Vec<i32>,
@@ -329,27 +332,382 @@ struct Parser<UserEvents: FromStr+Clone+PartialEq>{
 }
 
 impl<UserEvents: FromStr+Clone+PartialEq> Parser<UserEvents>{
-    fn push(&mut self, tag: LayoutCommands<UserEvents>){
-        if let LayoutCommands::TextOpened = tag {
-            self.text_opened = true;
+    pub fn add_page(&mut self, xml_string: &str) -> Result<(), ParserError>{
+        let mut reader = Reader::from_str(xml_string);
+        reader.config_mut().trim_text(true);
+        let mut buf = Vec::<u8>::new();
+
+        self.push(LayoutCommandType::TextConfig(TextConfigCommand::DefaultText("hello".to_string())));
+
+        loop {
+            match reader.read_event_into(&mut buf) {
+                Err(e) => {
+                    println!("Reader Error: {:?}", e);
+                    return Err(ParserError::ReaderError)
+                },
+                Ok(Event::Eof) => break,
+                Ok(Event::Start(e)) => {
+                    self.nest();
+                    match e.name().as_ref() {
+                        b"fragment" => {
+                            match e.cdata("name") {
+                                None => return Err(ParserError::UnNamedFragment),
+                                Some(fragment_name) => self.open_fragment(fragment_name),
+                            }
+                        }
+                        b"call" => {
+                            match e.cdata("name") {
+                                None => return Err(ParserError::FragmentCallUnNamed),
+                                Some(fragment_name) => self.push(ConfigCommand::CallOpened(fragment_name.clone()))
+                            }
+                        }
+                        b"page" => {
+                            if let Some(_name) = e.cdata("name") {
+                                //page_name = name;
+                            }
+                        }
+                        b"element" => {
+                            if let Some(id) = e.cdata("if") {
+                                self.push_nest(ConfigCommand::IfOpened(id));
+                            }
+                            self.push(ConfigCommand::ElementOpened(e.cdata("id")));
+                        }
+                        b"layout" =>    self.push(ConfigCommand::ConfigOpened),
+                        b"text" =>      self.push(ConfigCommand::TextOpened),
+                        b"content" =>   self.start_text_content(),
+                        b"hovered" =>   self.push(ConfigCommand::HoveredOpened),
+                        b"list" => {
+                            if let Some(source) = e.cdata("src") {
+                                self.push(ConfigCommand::ListOpened(source));
+                            }
+                        }
+                        b"clicked" => {
+                            match e.cdata("emit") {
+                                None => self.push(ConfigCommand::ClickedOpened(None)),
+                                Some(event) => self.push(ConfigCommand::ClickedOpened(
+                                    match CustomEvent::from_str(&event) {
+                                        Err(_) => {
+                                            println!("{:?}", event);
+                                            None
+                                        }
+                                        Ok(event) => Some(event)
+                                    }
+                                )),
+                            }
+                        }
+                        other => return Err(ParserError::UnknownTag(other.to_owned()))
+                    }
+                }
+                Ok(Event::End(e)) => {
+                    self.denest();
+                    match e.name().as_ref() {
+                        b"fragment" => self.close_fragment(),
+                        b"call" => self.push(ConfigCommand::CallClosed),
+                        b"page" => (),
+                        b"element" => {
+                            self.push(ConfigCommand::ElementClosed);
+                            self.try_pop_nest();
+                        }
+                        b"layout" => self.push(ConfigCommand::ConfigClosed),
+                        b"text" => self.push(ConfigCommand::TextClosed),
+                        b"content" => self.close_text_content(),
+                        b"hovered" => self.push(ConfigCommand::HoveredClosed),
+                        b"clicked" => self.push(ConfigCommand::ClickedClosed),
+                        b"list" => self.push(ConfigCommand::ListClosed),
+                        other => return Err(ParserError::UnknownTag(other.to_owned()))
+                    }
+                }
+                Ok(Event::Empty(mut e)) => {
+                    match e.name().as_ref() {
+                        b"id" => {
+                            if let Some(id) = e.cdata("is") {
+                                self.push(ConfigCommand::Id(id));
+                            }
+                        }
+                        b"grow" => self.push(ConfigCommand::GrowAll),
+                        b"width" => set_sizing_command(&mut e, &mut self, true),
+                        b"height" => set_sizing_command(&mut e, &mut self, false),
+                        b"padding" => {
+                            if let Some(num) = e.cdata("all") {
+                                if let Ok(num) = u16::from_str(&num) {
+                                    self.push(ConfigCommand::PaddingAll(num));
+                                }
+                            }
+                            if let Some(num) = e.cdata("top") {
+                                if let Ok(num) = u16::from_str(&num) {
+                                    self.push(ConfigCommand::PaddingTop(num));
+                                }
+                            }
+                            if let Some(num) = e.cdata("bottom") {
+                                if let Ok(num) = u16::from_str(&num) {
+                                    self.push(ConfigCommand::PaddingBottom(num));
+                                }
+                            }
+                            if let Some(num) = e.cdata("Left") {
+                                if let Ok(num) = u16::from_str(&num) {
+                                    self.push(ConfigCommand::PaddingLeft(num));
+                                }
+                            }
+                            if let Some(num) = e.cdata("Right") {
+                                if let Ok(num) = u16::from_str(&num) {
+                                    self.push(ConfigCommand::PaddingRight(num));
+                                }
+                            }
+                        }
+                        b"direction" => {
+                            if let Some(direction) = e.cdata("is") {
+                                if &direction == "ttb" {
+                                    self.push(ConfigCommand::DirectionTTB);
+                                }
+                                else {
+                                    self.push(ConfigCommand::DirectionLTR);
+                                }
+                            }
+                        }
+                        b"align-children" => {
+                            if let Some(alignment_x) = e.cdata("x") {
+                                match LayoutData::from_str(&alignment_x) {
+                                    Err(_) => {}
+                                    Ok(layout_data) if layout_data == LayoutData::left => {
+                                        self.push(ConfigCommand::ChildAlignmentXLeft);
+                                    }
+                                    Ok(layout_data) if layout_data == LayoutData::right => {
+                                        self.push(ConfigCommand::ChildAlignmentXRight);
+                                    }
+                                    Ok(layout_data) if layout_data == LayoutData::center => {
+                                        self.push(ConfigCommand::ChildAlignmentXCenter);
+                                    }
+                                    Ok(_) => {}
+                                }
+                            }
+    
+                            if let Some(alignment_y) = e.cdata("y") {
+                                match LayoutData::from_str(&alignment_y) {
+                                    Err(_) => {}
+                                    Ok(layout_data) if layout_data == LayoutData::top => {
+                                        self.push(ConfigCommand::ChildAlignmentYTop);
+                                    }
+                                    Ok(layout_data) if layout_data == LayoutData::bottom => {
+                                        self.push(ConfigCommand::ChildAlignmentYBottom);
+                                    }
+                                    Ok(layout_data) if layout_data == LayoutData::center => {
+                                        self.push(ConfigCommand::ChildAlignmentYCenter);
+                                    }
+                                    Ok(_) => {}
+                                }
+                            }
+                        }
+                        b"child-gap" => {
+                            if let Some(is) = e.cdata("is") {
+                                if let Ok(is) = u16::from_str(&is){
+                                    self.push(ConfigCommand::ChildGap(is));
+                                }
+                            }
+                        }
+                        b"color" => {
+                            let color = if let Some(color) = e.cdata("is") {
+                                if let Ok(color) = csscolorself::parse(&color) {
+                                    let color = color.to_rgba8();
+                                    let color = [color[0] as f32, color[1] as f32, color[2] as f32, color[3] as f32];
+                                    color
+                                }
+                                else { [0.0;4] }
+                            } else { [0.0;4] };
+                            
+                            self.push_color(color);
+                        }
+                        b"dyn-color" => {
+                            let color = if let Some(color) = e.cdata("from") {
+                                if let Some(color) = app.get(&color) {
+                                    if let XMLType::Color(color) = color {
+                                        color
+                                    }
+                                    else { [0.0;4] }
+                                } else { [0.0;4] }
+                            } else { [0.0;4] };
+    
+                            self.push_color(color);
+                        }
+                        b"radius" => {
+                            if let Some(radius) = e.cdata("all") {
+                                if let Ok(radius) = f32::from_str(&radius) {
+                                    self.push(ConfigCommand::RadiusAll(radius));
+                                }
+                            }
+                            if let Some(radius) = e.cdata("top-left") {
+                                if let Ok(radius) = f32::from_str(&radius) {
+                                    self.push(ConfigCommand::RadiusTopLeft(radius));
+                                }
+                            }
+                            if let Some(radius) = e.cdata("top-right") {
+                                if let Ok(radius) = f32::from_str(&radius) {
+                                    self.push(ConfigCommand::RadiusTopRight(radius));
+                                }
+                            }
+                            if let Some(radius) = e.cdata("bottom-left") {
+                                if let Ok(radius) = f32::from_str(&radius) {
+                                    self.push(ConfigCommand::RadiusBottomLeft(radius));
+                                }
+                            }
+                            if let Some(radius) = e.cdata("bottom-left") {
+                                if let Ok(radius) = f32::from_str(&radius) {
+                                    self.push(ConfigCommand::RadiusBottomRight(radius));
+                                }
+                            }
+                        }
+                        b"border" => {
+                            let color = if let Some(color) = e.cdata("color"){
+                                if let Ok(color) = csscolorparser::parse(&color) {
+                                    let color = color.to_rgba8();
+                                    let color = [color[0] as f32, color[1] as f32, color[2] as f32, color[3] as f32];
+                                    Some(color)
+                                }
+                                else {
+                                    None
+                                }
+                            } else {None};
+                            if let Some(num) = e.cdata("all") {
+                                if let Ok(num) = f32::from_str(&num) {
+                                    match color {
+                                        None => self.push(ConfigCommand::BorderAll(num, [0.0;4])),
+                                        Some(color) => self.push(ConfigCommand::BorderAll(num, color)),
+                                    }
+                                }
+                            }
+                            if let Some(num) = e.cdata("top") {
+                                if let Ok(num) = f32::from_str(&num) {
+                                    self.push(ConfigCommand::BorderTop(num, color));
+                                }
+                            }
+                            if let Some(num) = e.cdata("bottom") {
+                                if let Ok(num) = f32::from_str(&num) {
+                                    self.push(ConfigCommand::BorderBottom(num, color));
+                                }
+                            }
+                            if let Some(num) = e.cdata("left") {
+                                if let Ok(num) = f32::from_str(&num) {
+                                    self.push(ConfigCommand::BorderLeft(num, color));
+                                }
+                            }
+                            if let Some(num) = e.cdata("right") {
+                                if let Ok(num) = f32::from_str(&num) {
+                                    self.push(ConfigCommand::BorderRight(num, color));
+                                }
+                            }
+                            if let Some(num) = e.cdata("between-children") {
+                                if let Ok(num) = f32::from_str(&num) {
+                                    self.push(ConfigCommand::BorderRight(num, color));
+                                }
+                            }
+                        }
+                        b"font-id" => {
+                            if let Some(is) = e.cdata("is") {
+                                if let Ok(is) = u16::from_str(&is){
+                                    self.push(ConfigCommand::FontId(is));
+                                }
+                            }
+                        }
+                        b"text-align-left" => self.push(ConfigCommand::TextAlignLeft),
+                        b"text-align-right" => self.push(ConfigCommand::TextAlignRight),
+                        b"text-align-center" => self.push(ConfigCommand::TextAlignCenter),
+                        b"font-size" => {
+                            if let Some(is) = e.cdata("is") {
+                                if let Ok(is) = u16::from_str(&is){
+                                    self.push(ConfigCommand::FontSize(is));
+                                }
+                            }
+                        }
+                        b"line-height" => {
+                            if let Some(is) = e.cdata("is") {
+                                if let Ok(is) = u16::from_str(&is){
+                                    self.push(ConfigCommand::TextLineHeight(is));
+                                }
+                            }
+                        }
+                        b"dyn-content" => {
+                            if let Some(tag) = e.cdata("from") {
+                                self.push(ConfigCommand::DynamicTextContent(tag));
+                            }
+                        }
+                        b"get" => {
+                            if let Some(local) = e.cdata("local") {
+                                if let Some(name) = e.cdata("from") {
+                                    self.push(ConfigCommand::Get(local, name));
+                                }
+                            }
+                        }
+                        b"set" => {
+                            if let Some(local) = e.cdata("local") {
+                                if let Some(value) = e.cdata("bool") {
+                                    if let Ok(value) = bool::from_str(&value) {
+                                        self.push(ConfigCommand::SetBool(local.clone(), value));
+                                    }
+                                }
+                                if let Some(value) = e.cdata("numeric") {
+                                    if let Ok(value) = f32::from_str(&value) {
+                                        self.push(ConfigCommand::SetNumeric(local.clone(), value));
+                                    }
+                                }
+                                if let Some(value) = e.cdata("text") {
+                                    self.push(ConfigCommand::SetText(local.clone(), value));
+                                }
+                                // if let Some(value) = e.cdata("image") {
+                                //     if let Ok(value) = f32::from_str(&value) {
+                                //         self.push(LayoutCommands::Set(local.clone(), XMLType::Numeric(value)));
+                                //     }
+                                // }
+                                if let Some(value) = e.cdata("color") {
+                                    let color = if let Ok(color) = csscolorparser::parse(&value) {
+                                            let color = color.to_rgba8();
+                                            let color = [color[0] as f32, color[1] as f32, color[2] as f32, color[3] as f32];
+                                            color
+                                    } else { [0.0;4] };
+                                    self.push(ConfigCommand::SetColor(local.clone(), color));
+                                }
+                            }
+                        }
+                        b"list-member" => {
+                            if let Some(name) = e.cdata("name") {
+                                self.push(ConfigCommand::ListMember(name));
+                            }
+                        }
+                        b"scroll" => {
+                            let vertical = match e.cdata("vertical") {
+                                None => false,
+                                Some(value) => bool::from_str(&value).unwrap()
+                            };
+                            let horizontal = match e.cdata("horizontal") {
+                                None => false,
+                                Some(value) => bool::from_str(&value).unwrap()
+                            };
+    
+                            self.push(ConfigCommand::Scroll(vertical, horizontal));
+                        }
+                        
+                        other => return Err(ParserError::UnknownTag(other.to_owned()))
+                    }
+                }
+                Ok(Event::Text(e)) => self.receive_text_content(e.unescape().unwrap().to_string()),
+                _ => ()
+            }
         }
-        if tag == LayoutCommands::TextClosed {
-            self.text_opened = false;
+        Ok(())
+    }
+    fn push(&mut self, tag: LayoutCommandType<UserEvents>){
+        if let LayoutCommandType::FlowControl(command) = &tag {
+            match command {
+                FlowControlCommand::TextConfigOpened(_) => self.text_opened = true,
+                FlowControlCommand::TextConfigClosed => self.text_opened = false,
+                _ => ()
+            }
         }
         match self.mode {
-            ParsingMode::Fragment => self.fragment.push(tag),
-            ParsingMode::Normal => self.xml_stack.push(tag),
+            ParsingMode::Fragment => self.current_fragment.push(tag),
+            ParsingMode::Normal => self.current_page.push(tag),
+            _ => todo!()
         }
     }
-    fn push_color(&mut self, color: [f32;4]){
-        if self.text_opened {
-            self.push(LayoutCommands::TextColor(color));
-        }
-        else {
-            self.push(LayoutCommands::Color(color));
-        }
-    }
-    fn push_nest(&mut self, tag: LayoutCommands<UserEvents>){
+    fn push_nest(&mut self, tag: LayoutCommandType<UserEvents>){
         self.push(tag);
         self.xml_nesting_stack.push(self.nesting_level);
     }
@@ -359,7 +717,7 @@ impl<UserEvents: FromStr+Clone+PartialEq> Parser<UserEvents>{
             Some(saved_nesting_level) => {
                 if self.nesting_level < *saved_nesting_level {
                     self.xml_nesting_stack.pop();
-                    self.push(LayoutCommands::IfClosed);
+                    self.push(LayoutCommandType::FlowControl(FlowControlCommand::IfClosed));
                 }
             }
         }
@@ -380,411 +738,44 @@ impl<UserEvents: FromStr+Clone+PartialEq> Parser<UserEvents>{
     }
     fn close_text_content(&mut self){
         let content = self.text_content.take().unwrap();
-        self.push(LayoutCommands::TextContent(content));
+        self.push(LayoutCommandType::TextConfig(TextConfigCommand::Content(content)));
     }
     fn open_fragment(&mut self, name: String){
         self.fragment_name = name;
-        self.fragment.clear();
+        self.current_fragment.clear();
         self.mode = ParsingMode::Fragment;
     }
     fn close_fragment(&mut self){
-        let new_fragment = self.fragment.clone();
+        let new_fragment = self.current_fragment.clone();
         self.fragments.insert(self.fragment_name.clone(), new_fragment);
         self.mode = ParsingMode::Normal;
     }
-    fn flush(self) -> (Vec<LayoutCommands<UserEvents>>, HashMap<String, Vec<LayoutCommands<UserEvents>>>) {
-        (self.xml_stack, self.fragments)
-    }
+
+    pub fn set_page<'render_pass, ImageElementData: Debug+Default, CustomElementData: Debug+Default, UserApp: Get<ImageElementData, UserEvents>>(
+        page: &str,
+        clicked: bool,
+        events: &mut Vec<UserEvents>,
+        layout_engine: &mut LayoutEngine<ImageElementData, CustomElementData, UserEvents>,
+        user_app: &UserApp
+    ){}
 }
 
-pub fn parse_xml<ImageElementData, CustomEvent: FromStr+Clone+PartialEq+Default+Debug, UserApp: Get<ImageElementData, CustomEvent>>(file: &str, app: &mut UserApp) -> Result<(Vec<LayoutCommands<CustomEvent>>, HashMap::<String, Vec<LayoutCommands<CustomEvent>>>), ParserError>
+pub fn parse_xml<ImageElementData, CustomEvent: FromStr+Clone+PartialEq+Default+Debug, UserApp: Get<ImageElementData, CustomEvent>>(file: &str, app: &mut UserApp)
     where <CustomEvent as FromStr>::Err: Debug
 {
-    use quick_xml::events::Event;
-    use quick_xml::reader::Reader;
-
-    let path = Path::new(file);
-    let file = match fs::read_to_string(path) {
-        Ok(file) => file,
-        Err(_) => return Err(ParserError::FileNotAccessable)
-    };
-
-    let mut reader = Reader::from_str(&file);
-    reader.config_mut().trim_text(true);
-    let mut buf = Vec::new();
-
-    let mut parser = Parser::<CustomEvent>::default();
-
-    parser.push(LayoutCommands::DefaultText("hello".to_string()));
-
-    loop {
-        match reader.read_event_into(&mut buf) {
-            Err(e) => {
-                println!("Reader Error: {:?}", e);
-                return Err(ParserError::ReaderError)
-            },
-            Ok(Event::Eof) => break,
-            Ok(Event::Start(e)) => {
-                parser.nest();
-                match e.name().as_ref() {
-                    b"fragment" => {
-                        match e.cdata("name") {
-                            None => return Err(ParserError::UnNamedFragment),
-                            Some(fragment_name) => parser.open_fragment(fragment_name),
-                        }
-                    }
-                    b"call" => {
-                        match e.cdata("name") {
-                            None => return Err(ParserError::FragmentCallUnNamed),
-                            Some(fragment_name) => parser.push(LayoutCommands::CallOpened(fragment_name.clone()))
-                        }
-                    }
-                    b"page" => {
-                        if let Some(_name) = e.cdata("name") {
-                            //page_name = name;
-                        }
-                    }
-                    b"element" => {
-                        if let Some(id) = e.cdata("if") {
-                            parser.push_nest(LayoutCommands::IfOpened(id));
-                        }
-                        parser.push(LayoutCommands::ElementOpened(e.cdata("id")));
-                    }
-                    b"layout" =>    parser.push(LayoutCommands::ConfigOpened),
-                    b"text" =>      parser.push(LayoutCommands::TextOpened),
-                    b"content" =>   parser.start_text_content(),
-                    b"hovered" =>   parser.push(LayoutCommands::HoveredOpened),
-                    b"list" => {
-                        if let Some(source) = e.cdata("src") {
-                            parser.push(LayoutCommands::ListOpened(source));
-                        }
-                    }
-                    b"clicked" => {
-                        match e.cdata("emit") {
-                            None => parser.push(LayoutCommands::ClickedOpened(None)),
-                            Some(event) => parser.push(LayoutCommands::ClickedOpened(
-                                match CustomEvent::from_str(&event) {
-                                    Err(_) => {
-                                        println!("{:?}", event);
-                                        None
-                                    }
-                                    Ok(event) => Some(event)
-                                }
-                            )),
-                        }
-                    }
-                    other => return Err(ParserError::UnknownTag(other.to_owned()))
-                }
-            }
-            Ok(Event::End(e)) => {
-                parser.denest();
-                match e.name().as_ref() {
-                    b"fragment" => parser.close_fragment(),
-                    b"call" => parser.push(LayoutCommands::CallClosed),
-                    b"page" => (),
-                    b"element" => {
-                        parser.push(LayoutCommands::ElementClosed);
-                        parser.try_pop_nest();
-                    }
-                    b"layout" => parser.push(LayoutCommands::ConfigClosed),
-                    b"text" => parser.push(LayoutCommands::TextClosed),
-                    b"content" => parser.close_text_content(),
-                    b"hovered" => parser.push(LayoutCommands::HoveredClosed),
-                    b"clicked" => parser.push(LayoutCommands::ClickedClosed),
-                    b"list" => parser.push(LayoutCommands::ListClosed),
-                    other => return Err(ParserError::UnknownTag(other.to_owned()))
-                }
-            }
-            Ok(Event::Empty(mut e)) => {
-                match e.name().as_ref() {
-                    b"id" => {
-                        if let Some(id) = e.cdata("is") {
-                            parser.push(LayoutCommands::Id(id));
-                        }
-                    }
-                    b"grow" => parser.push(LayoutCommands::GrowAll),
-                    b"width" => set_sizing_command(&mut e, &mut parser, true),
-                    b"height" => set_sizing_command(&mut e, &mut parser, false),
-                    b"padding" => {
-                        if let Some(num) = e.cdata("all") {
-                            if let Ok(num) = f32::from_str(&num) {
-                                parser.push(LayoutCommands::PaddingAll(num));
-                            }
-                        }
-                        if let Some(num) = e.cdata("top") {
-                            if let Ok(num) = f32::from_str(&num) {
-                                parser.push(LayoutCommands::PaddingTop(num));
-                            }
-                        }
-                        if let Some(num) = e.cdata("bottom") {
-                            if let Ok(num) = f32::from_str(&num) {
-                                parser.push(LayoutCommands::PaddingBottom(num));
-                            }
-                        }
-                        if let Some(num) = e.cdata("Left") {
-                            if let Ok(num) = f32::from_str(&num) {
-                                parser.push(LayoutCommands::PaddingLeft(num));
-                            }
-                        }
-                        if let Some(num) = e.cdata("Right") {
-                            if let Ok(num) = f32::from_str(&num) {
-                                parser.push(LayoutCommands::PaddingRight(num));
-                            }
-                        }
-                    }
-                    b"direction" => {
-                        if let Some(direction) = e.cdata("is") {
-                            if &direction == "ttb" {
-                                parser.push(LayoutCommands::DirectionTTB);
-                            }
-                            else {
-                                parser.push(LayoutCommands::DirectionLTR);
-                            }
-                        }
-                    }
-                    b"align-children" => {
-                        if let Some(alignment_x) = e.cdata("x") {
-                            match LayoutData::from_str(&alignment_x) {
-                                Err(_) => {}
-                                Ok(layout_data) if layout_data == LayoutData::left => {
-                                    parser.push(LayoutCommands::ChildAlignmentXLeft);
-                                }
-                                Ok(layout_data) if layout_data == LayoutData::right => {
-                                    parser.push(LayoutCommands::ChildAlignmentXRight);
-                                }
-                                Ok(layout_data) if layout_data == LayoutData::center => {
-                                    parser.push(LayoutCommands::ChildAlignmentXCenter);
-                                }
-                                Ok(_) => {}
-                            }
-                        }
-
-                        if let Some(alignment_y) = e.cdata("y") {
-                            match LayoutData::from_str(&alignment_y) {
-                                Err(_) => {}
-                                Ok(layout_data) if layout_data == LayoutData::top => {
-                                    parser.push(LayoutCommands::ChildAlignmentYTop);
-                                }
-                                Ok(layout_data) if layout_data == LayoutData::bottom => {
-                                    parser.push(LayoutCommands::ChildAlignmentYBottom);
-                                }
-                                Ok(layout_data) if layout_data == LayoutData::center => {
-                                    parser.push(LayoutCommands::ChildAlignmentYCenter);
-                                }
-                                Ok(_) => {}
-                            }
-                        }
-                    }
-                    b"child-gap" => {
-                        if let Some(is) = e.cdata("is") {
-                            if let Ok(is) = u16::from_str(&is){
-                                parser.push(LayoutCommands::ChildGap(is));
-                            }
-                        }
-                    }
-                    b"color" => {
-                        let color = if let Some(color) = e.cdata("is") {
-                            if let Ok(color) = csscolorparser::parse(&color) {
-                                let color = color.to_rgba8();
-                                let color = [color[0] as f32, color[1] as f32, color[2] as f32, color[3] as f32];
-                                color
-                            }
-                            else { [0.0;4] }
-                        } else { [0.0;4] };
-                        
-                        parser.push_color(color);
-                    }
-                    b"dyn-color" => {
-                        let color = if let Some(color) = e.cdata("from") {
-                            if let Some(color) = app.get(&color) {
-                                if let XMLType::Color(color) = color {
-                                    color
-                                }
-                                else { [0.0;4] }
-                            } else { [0.0;4] }
-                        } else { [0.0;4] };
-
-                        parser.push_color(color);
-                    }
-                    b"radius" => {
-                        if let Some(radius) = e.cdata("all") {
-                            if let Ok(radius) = f32::from_str(&radius) {
-                                parser.push(LayoutCommands::RadiusAll(radius));
-                            }
-                        }
-                        if let Some(radius) = e.cdata("top-left") {
-                            if let Ok(radius) = f32::from_str(&radius) {
-                                parser.push(LayoutCommands::RadiusTopLeft(radius));
-                            }
-                        }
-                        if let Some(radius) = e.cdata("top-right") {
-                            if let Ok(radius) = f32::from_str(&radius) {
-                                parser.push(LayoutCommands::RadiusTopRight(radius));
-                            }
-                        }
-                        if let Some(radius) = e.cdata("bottom-left") {
-                            if let Ok(radius) = f32::from_str(&radius) {
-                                parser.push(LayoutCommands::RadiusBottomLeft(radius));
-                            }
-                        }
-                        if let Some(radius) = e.cdata("bottom-left") {
-                            if let Ok(radius) = f32::from_str(&radius) {
-                                parser.push(LayoutCommands::RadiusBottomRight(radius));
-                            }
-                        }
-                    }
-                    b"border" => {
-                        let color = if let Some(color) = e.cdata("color"){
-                            if let Ok(color) = csscolorparser::parse(&color) {
-                                let color = color.to_rgba8();
-                                let color = [color[0] as f32, color[1] as f32, color[2] as f32, color[3] as f32];
-                                Some(color)
-                            }
-                            else {
-                                None
-                            }
-                        } else {None};
-                        if let Some(num) = e.cdata("all") {
-                            if let Ok(num) = f32::from_str(&num) {
-                                match color {
-                                    None => parser.push(LayoutCommands::BorderAll(num, [0.0;4])),
-                                    Some(color) => parser.push(LayoutCommands::BorderAll(num, color)),
-                                }
-                            }
-                        }
-                        if let Some(num) = e.cdata("top") {
-                            if let Ok(num) = f32::from_str(&num) {
-                                parser.push(LayoutCommands::BorderTop(num, color));
-                            }
-                        }
-                        if let Some(num) = e.cdata("bottom") {
-                            if let Ok(num) = f32::from_str(&num) {
-                                parser.push(LayoutCommands::BorderBottom(num, color));
-                            }
-                        }
-                        if let Some(num) = e.cdata("left") {
-                            if let Ok(num) = f32::from_str(&num) {
-                                parser.push(LayoutCommands::BorderLeft(num, color));
-                            }
-                        }
-                        if let Some(num) = e.cdata("right") {
-                            if let Ok(num) = f32::from_str(&num) {
-                                parser.push(LayoutCommands::BorderRight(num, color));
-                            }
-                        }
-                        if let Some(num) = e.cdata("between-children") {
-                            if let Ok(num) = f32::from_str(&num) {
-                                parser.push(LayoutCommands::BorderRight(num, color));
-                            }
-                        }
-                    }
-                    b"font-id" => {
-                        if let Some(is) = e.cdata("is") {
-                            if let Ok(is) = u16::from_str(&is){
-                                parser.push(LayoutCommands::FontId(is));
-                            }
-                        }
-                    }
-                    b"text-align-left" => parser.push(LayoutCommands::TextAlignLeft),
-                    b"text-align-right" => parser.push(LayoutCommands::TextAlignRight),
-                    b"text-align-center" => parser.push(LayoutCommands::TextAlignCenter),
-                    b"font-size" => {
-                        if let Some(is) = e.cdata("is") {
-                            if let Ok(is) = u16::from_str(&is){
-                                parser.push(LayoutCommands::FontSize(is));
-                            }
-                        }
-                    }
-                    b"line-height" => {
-                        if let Some(is) = e.cdata("is") {
-                            if let Ok(is) = u16::from_str(&is){
-                                parser.push(LayoutCommands::TextLineHeight(is));
-                            }
-                        }
-                    }
-                    b"dyn-content" => {
-                        if let Some(tag) = e.cdata("from") {
-                            parser.push(LayoutCommands::DynamicTextContent(tag));
-                        }
-                    }
-                    b"get" => {
-                        if let Some(local) = e.cdata("local") {
-                            if let Some(name) = e.cdata("from") {
-                                parser.push(LayoutCommands::Get(local, name));
-                            }
-                        }
-                    }
-                    b"set" => {
-                        if let Some(local) = e.cdata("local") {
-                            if let Some(value) = e.cdata("bool") {
-                                if let Ok(value) = bool::from_str(&value) {
-                                    parser.push(LayoutCommands::SetBool(local.clone(), value));
-                                }
-                            }
-                            if let Some(value) = e.cdata("numeric") {
-                                if let Ok(value) = f32::from_str(&value) {
-                                    parser.push(LayoutCommands::SetNumeric(local.clone(), value));
-                                }
-                            }
-                            if let Some(value) = e.cdata("text") {
-                                parser.push(LayoutCommands::SetText(local.clone(), value));
-                            }
-                            // if let Some(value) = e.cdata("image") {
-                            //     if let Ok(value) = f32::from_str(&value) {
-                            //         parser.push(LayoutCommands::Set(local.clone(), XMLType::Numeric(value)));
-                            //     }
-                            // }
-                            if let Some(value) = e.cdata("color") {
-                                let color = if let Ok(color) = csscolorparser::parse(&value) {
-                                        let color = color.to_rgba8();
-                                        let color = [color[0] as f32, color[1] as f32, color[2] as f32, color[3] as f32];
-                                        color
-                                } else { [0.0;4] };
-                                parser.push(LayoutCommands::SetColor(local.clone(), color));
-                            }
-                        }
-                    }
-                    b"list-member" => {
-                        if let Some(name) = e.cdata("name") {
-                            parser.push(LayoutCommands::ListMember(name));
-                        }
-                    }
-                    b"scroll" => {
-                        let vertical = match e.cdata("vertical") {
-                            None => false,
-                            Some(value) => bool::from_str(&value).unwrap()
-                        };
-                        let horizontal = match e.cdata("horizontal") {
-                            None => false,
-                            Some(value) => bool::from_str(&value).unwrap()
-                        };
-
-                        parser.push(LayoutCommands::Scroll(vertical, horizontal));
-                    }
-                    
-                    other => return Err(ParserError::UnknownTag(other.to_owned()))
-                }
-            }
-            Ok(Event::Text(e)) => parser.receive_text_content(e.unescape().unwrap().to_string()),
-            _ => (),
-        }
-        buf.clear();
-    }
-    
-    Ok(parser.flush())
 }
 
-pub fn set_layout<'render_pass, ImageElementData: Debug+Default, CustomElementData: Debug+Default, UserEvents: FromStr+Clone+PartialEq+Debug, UserApp: Get<ImageElementData, UserEvents>>(
+fn set_layout<'render_pass, ImageElementData: Debug+Default, CustomElementData: Debug+Default, UserEvents: FromStr+Clone+PartialEq+Debug, UserApp: Get<ImageElementData, UserEvents>>(
     clicked: bool,
     events: &mut Vec<UserEvents>,
-    xml_stack: &Vec<LayoutCommands<UserEvents>>,
-    fragments: &HashMap<String, Vec<LayoutCommands<UserEvents>>>,
+    command_stack: &Vec<LayoutCommandType<UserEvents>>,
+    fragments: &HashMap<String, Vec<LayoutCommandType<UserEvents>>>,
     layout_engine: &mut LayoutEngine<ImageElementData, CustomElementData, UserEvents>,
     user_app: &UserApp,
     locals: Option<&HashMap<String, XMLType<ImageElementData, UserEvents>>>
 ){
     let mut config = None::<ElementConfiguration>;
-    let mut selected_fragment = None::<&Vec<LayoutCommands<UserEvents>>>;
+    let mut selected_fragment = None::<&Vec<LayoutCommandType<UserEvents>>>;
     let mut local_call_stack = HashMap::<String, XMLType<ImageElementData, UserEvents>>::new();
     let mut text_config = None::<TextConfig>;
     let mut text_content = None::<&String>;
@@ -792,18 +783,18 @@ pub fn set_layout<'render_pass, ImageElementData: Debug+Default, CustomElementDa
     let mut nesting_level = 0;
     let mut skip_level = -1;
 
-    let mut list_stack = Vec::<LayoutCommands<UserEvents>>::new();
-    let mut list_members = Vec::<LayoutCommands<UserEvents>>::new();
+    let mut list_stack = Vec::<LayoutCommandType<UserEvents>>::new();
+    let mut list_members = Vec::<LayoutCommandType<UserEvents>>::new();
     let mut list_opened = false;
     let mut list_source = String::new();
 
-    for xml_command in xml_stack.iter() {
+    for xml_command in command_stack.iter() {
         if list_opened {
             match xml_command {
-                LayoutCommands::ListClosed => {
+                ConfigCommand::ListClosed => {
                     list_opened = false;
                 }
-                LayoutCommands::ListMember(_) => {
+                ConfigCommand::ListMember(_) => {
                     list_members.push(xml_command.clone())
                 }
                 other => {
@@ -814,35 +805,35 @@ pub fn set_layout<'render_pass, ImageElementData: Debug+Default, CustomElementDa
         }
 
         match xml_command {
-            LayoutCommands::IfOpened(tag) => {
+            ConfigCommand::IfOpened(tag) => {
                 if skip_level == -1 && !get_bool(&tag, user_app) {
                     skip_level = nesting_level;
                 }
 
                 nesting_level += 1;
             }
-            LayoutCommands::IfClosed => {
+            ConfigCommand::IfClosed => {
                 nesting_level -= 1;
 
                 if skip_level == nesting_level {
                     skip_level = -1;
                 }
             }
-            LayoutCommands::HoveredOpened => {
+            ConfigCommand::HoveredOpened => {
                 if skip_level == -1 && !layout_engine.hovered() {
                     skip_level = nesting_level;
                 }
 
                 nesting_level += 1;
             }
-            LayoutCommands::HoveredClosed => {
+            ConfigCommand::HoveredClosed => {
                 nesting_level -= 1;
 
                 if skip_level == nesting_level {
                     skip_level = -1;
                 }
             }
-            LayoutCommands::ClickedOpened(event) => {
+            ConfigCommand::ClickedOpened(event) => {
                 if skip_level == -1 && (!clicked || !layout_engine.hovered()) {
                     skip_level = nesting_level;
                 }
@@ -854,28 +845,28 @@ pub fn set_layout<'render_pass, ImageElementData: Debug+Default, CustomElementDa
 
                 nesting_level += 1;
             }
-            LayoutCommands::ClickedClosed => {
+            ConfigCommand::ClickedClosed => {
                 nesting_level -= 1;
 
                 if skip_level == nesting_level {
                     skip_level = -1;
                 }
             }
-            LayoutCommands::ElementOpened(_id)=> {
+            ConfigCommand::ElementOpened(_id)=> {
                 nesting_level += 1;
 
                 if skip_level == -1 {
                     layout_engine.open();
                 }
             }
-            LayoutCommands::ElementClosed=> {
+            ConfigCommand::ElementClosed=> {
                 nesting_level -= 1;
 
                 if skip_level == -1 {
                     layout_engine.close();
                 }
             }
-            LayoutCommands::ConfigOpened if skip_level == -1 => {
+            ConfigCommand::ConfigOpened  => {
                 nesting_level += 1;
 
                 if skip_level == -1 {
@@ -885,7 +876,7 @@ pub fn set_layout<'render_pass, ImageElementData: Debug+Default, CustomElementDa
                     }
                 }
             }
-            LayoutCommands::ConfigClosed if skip_level == -1 => {
+            ConfigCommand::ConfigClosed  => {
                 nesting_level -= 1;
 
                 if skip_level == -1 {
@@ -900,13 +891,13 @@ pub fn set_layout<'render_pass, ImageElementData: Debug+Default, CustomElementDa
                 }
             }
             
-            LayoutCommands::CallOpened(fragment_name) if skip_level == -1 => {
+            ConfigCommand::CallOpened(fragment_name)  => {
                 if let Some(fragment) = fragments.get(fragment_name) {
                     selected_fragment = Some(fragment);
                     local_call_stack.clear();
                 }
             }
-            LayoutCommands::CallClosed if skip_level == -1 => {
+            ConfigCommand::CallClosed  => {
                 if selected_fragment.is_some() {
                     if local_call_stack.len() > 0 {
                         set_layout(clicked, events, selected_fragment.take().unwrap(), fragments, layout_engine, user_app, Some(&local_call_stack));
@@ -917,20 +908,20 @@ pub fn set_layout<'render_pass, ImageElementData: Debug+Default, CustomElementDa
                 }
             }
 
-            LayoutCommands::ListOpened(source) if skip_level == -1 => {
+            ConfigCommand::ListOpened(source)  => {
                 list_source = source.to_string();
                 list_stack.clear();
                 list_members.clear();
                 list_opened = true;
             }
-            LayoutCommands::ListClosed if skip_level == -1 => {
+            ConfigCommand::ListClosed  => {
                 let list_length = user_app.get(&list_source);
                 if let Some(source) = list_length {
                     if let XMLType::ListLength(length) = source {
                         for i in 0..length {
                             local_call_stack.clear();
                             for member in list_members.iter() {
-                                if let LayoutCommands::ListMember(name) = member {
+                                if let ConfigCommand::ListMember(name) = member {
                                     let value = user_app.get_list_member(&list_source, i, &name);
                                     if let Some(value) = value {
                                         local_call_stack.insert(name.to_string(), value);
@@ -943,247 +934,218 @@ pub fn set_layout<'render_pass, ImageElementData: Debug+Default, CustomElementDa
                 }
             }
             
-            LayoutCommands::Get(local, name) if skip_level == -1 => {
+            ConfigCommand::Get(local, name)  => {
                 if let Some(value) = user_app.get(name) {
                     local_call_stack.insert(local.to_string(), value);
                 }
             }
             // todo other sets
-            LayoutCommands::SetBool(local, value) if skip_level == -1 => {
+            ConfigCommand::SetBool(local, value)  => {
                 local_call_stack.insert(local.to_string(), XMLType::Bool(*value));
             }
-            LayoutCommands::SetNumeric(local, value) if skip_level == -1 => {
+            ConfigCommand::SetNumeric(local, value)  => {
                 local_call_stack.insert(local.to_string(), XMLType::Numeric(*value));
             }
-            LayoutCommands::SetText(local, value) if skip_level == -1 => {
+            ConfigCommand::SetText(local, value)  => {
                 local_call_stack.insert(local.to_string(), XMLType::Text(&value.as_str()));
             }
 
-            LayoutCommands::FitX if skip_level == -1 => {
-                config.as_mut().unwrap().x_fit();
-            }
-            LayoutCommands::FitXmin(min) if skip_level == -1 => {
-                config.as_mut().unwrap().x_fit_min(*min);
-            }
-            LayoutCommands::FitXminmax(min, max) if skip_level == -1 => {
-                config.as_mut().unwrap().x_fit_min_max(*min, *max);
-            }
-            LayoutCommands::FitY if skip_level == -1 => {
-                config.as_mut().unwrap().y_fit();
-            }
-            LayoutCommands::FitYmin(min) if skip_level == -1 => {
-                config.as_mut().unwrap().y_fit_min(*min);
-            }
-            LayoutCommands::FitYminmax(min, max) if skip_level == -1 => {
-                config.as_mut().unwrap().y_fit_min_max(*min, *max);
-            }
+            config_command => {
+                if skip_level == -1 {
+                    let open_config = config.as_mut().unwrap();
 
-            LayoutCommands::GrowX if skip_level == -1 => {
-                config.as_mut().unwrap().x_grow();
+                    match config_command {
+                        ConfigCommand::FitX  => open_config.x_fit().parse(),
+                        ConfigCommand::FitXmin(min)  => open_config.x_fit_min(*min).parse(),
+                        ConfigCommand::FitXminmax(min, max)  => open_config.x_fit_min_max(*min, *max).parse(),
+                        ConfigCommand::FitY  => open_config.y_fit().parse(),
+                        ConfigCommand::FitYmin(min)  => open_config.y_fit_min(*min).parse(),
+                        ConfigCommand::FitYminmax(min, max)  => open_config.y_fit_min_max(*min, *max).parse(),
+                        ConfigCommand::GrowX  => open_config.x_grow().parse(),
+                        ConfigCommand::GrowXmin(min)  => open_config.x_grow_min(*min).parse(),
+                        ConfigCommand::GrowXminmax(min, max)  => open_config.x_grow_min_max(*min, *max).parse(),
+                        ConfigCommand::GrowY  => open_config.y_grow().parse(),
+                        ConfigCommand::GrowYmin(min)  => open_config.y_grow_min(*min).parse(),
+                        ConfigCommand::GrowYminmax(min, max)  => open_config.y_grow_min_max(*min, *max).parse(),
+                        ConfigCommand::FixedX(x)  => open_config.x_fixed(*x).parse(),
+                        ConfigCommand::FixedY(y)  => open_config.y_fixed(*y).parse(),
+                        ConfigCommand::PercentX(size)  => open_config.x_percent(*size).parse(),
+                        ConfigCommand::PercentY(size)  => open_config.y_percent(*size).parse(),
+                        ConfigCommand::GrowAll  => open_config.grow_all().parse(),
+                        ConfigCommand::PaddingAll(padding)  => open_config.padding_all(*padding).parse(),
+                        ConfigCommand::PaddingTop(padding)  => open_config.padding_top(*padding).parse(),
+                        ConfigCommand::PaddingBottom(padding)  => open_config.padding_bottom(*padding).parse(),
+                        ConfigCommand::PaddingLeft(padding)  => open_config.padding_left(*padding).parse(),
+                        ConfigCommand::PaddingRight(padding)  => open_config.padding_right(*padding).parse(),
+                        ConfigCommand::DirectionTTB  => open_config.direction(true).parse(),
+                        ConfigCommand::DirectionLTR  => open_config.direction(false).parse(),
+                        ConfigCommand::Id(label)  => open_config.id(&label).parse(),
+                        ConfigCommand::ChildGap(gap)  => open_config.child_gap(*gap).parse(),
+                        ConfigCommand::ChildAlignmentXLeft  => open_config.align_children_x_left().parse(),
+                        ConfigCommand::ChildAlignmentXRight  => open_config.align_children_x_right().parse(),
+                        ConfigCommand::ChildAlignmentXCenter  => open_config.align_children_x_center().parse(),
+                        ConfigCommand::ChildAlignmentYTop  => open_config.align_children_y_top().parse(),
+                        ConfigCommand::ChildAlignmentYCenter  => open_config.align_children_y_center().parse(),
+                        ConfigCommand::ChildAlignmentYBottom  => open_config.align_children_y_bottom().parse(),
+                        ConfigCommand::Color(color)  => todo!(),
+                        ConfigCommand::RadiusAll(radius)  => open_config.radius_all(*radius).parse(),
+                        ConfigCommand::RadiusTopLeft(radius)  => open_config.radius_top_left(*radius).parse(),
+                        ConfigCommand::RadiusTopRight(radius)  => open_config.radius_bottom_right(*radius).parse(),
+                        ConfigCommand::RadiusBottomRight(radius)  => open_config.radius_bottom_right(*radius).parse(),
+                        ConfigCommand::RadiusBottomLeft(radius)  => open_config.radius_bottom_left(*radius).parse(),
+                        ConfigCommand::BorderAll(border, color)  => todo!(),
+                        ConfigCommand::BorderTop(border, color)  => todo!(),
+                        ConfigCommand::BorderBottom(border, color)  => todo!(),
+                        ConfigCommand::BorderLeft(border, color)  => todo!(),
+                        ConfigCommand::BorderRight(border, color)  => todo!(),
+                        ConfigCommand::BorderBetweenChildren(border, color)  => todo!(),
+                        ConfigCommand::TextOpened  => {
+                            nesting_level += 1;
+            
+                            text_config = Some(TextConfig::default());
+                        } 
+                        ConfigCommand::TextClosed  => {
+                            match text_config.is_some() {
+                                false => panic!("invalid xml stack"),
+                                true => {
+                                    let final_text_config = text_config.take().unwrap();
+                                    match text_content.is_some() {
+                                        false => {
+                                            match dynamic_text_content.is_some() {
+                                                false => {
+                                                    
+                                                    layout_engine.add_text_element("", &final_text_config.end(), false);
+                                                }
+                                                true => {
+                                                    let final_dyn_content = dynamic_text_content.take().unwrap();
+                                                    layout_engine.add_text_element(&final_dyn_content, &final_text_config.end(), false);
+                                                }
+                                            }
+                                        }
+                                        true => {
+                                            layout_engine.add_text_element(text_content.take().unwrap(), &final_text_config.end(), false);
+                                        }
+                                    }
+                                    
+                                },
+                            }
+            
+                            nesting_level -= 1;
+                        }
+                        ConfigCommand::FontId(id)  => {
+                            text_config.as_mut().unwrap().font_id(*id);
+                        }
+                        ConfigCommand::TextAlignLeft  => {
+                            text_config.as_mut().unwrap().alignment(crate::text::TextAlignment::Left);
+                        }
+                        ConfigCommand::TextAlignRight  => {
+                            text_config.as_mut().unwrap().alignment(crate::text::TextAlignment::Right);
+                        }
+                        ConfigCommand::TextAlignCenter  => {
+                            text_config.as_mut().unwrap().alignment(crate::text::TextAlignment::Center);
+                        }
+                        ConfigCommand::TextLineHeight(lh)  => {
+                            text_config.as_mut().unwrap().line_height(*lh);
+                        }
+                        ConfigCommand::FontSize(size)  => {
+                            text_config.as_mut().unwrap().font_size(*size);
+                        }
+                        ConfigCommand::TextContent(content)  => {
+                            text_content = Some(content);
+                        }
+                        ConfigCommand::DynamicTextContent(content)  => {
+                            match locals.is_some() {
+                                true => {
+                                    match locals.as_ref().unwrap().get(content) {
+                                        None => dynamic_text_content = Some(get_text(&content, user_app).unwrap()),
+                                        Some(local) => {
+                                            match local {
+                                                XMLType::Text(text) => dynamic_text_content = Some(text),
+                                                _ => dynamic_text_content = None
+                                            }
+                                        }
+                                    }
+                                },
+                                false => dynamic_text_content = Some(get_text(&content, user_app).unwrap())
+                            }
+                        }
+                        ConfigCommand::TextColor(color)  => {
+                            text_config.as_mut().unwrap().color(color[0], color[1], color[2], color[3]);
+                        }
+            
+                        ConfigCommand::Scroll(vertical, horizontal)  => {
+                            config.as_mut().unwrap().scroll(*vertical, *horizontal);
+                        }
+                        other_command => {}
+                    };
+                }
             }
-            LayoutCommands::GrowXmin(min) if skip_level == -1 => {
-                config.as_mut().unwrap().x_grow_min(*min);
-            }
-            LayoutCommands::GrowXminmax(min, max) if skip_level == -1 => {
-                config.as_mut().unwrap().x_grow_min_max(*min, *max);
-            }
-            LayoutCommands::GrowY if skip_level == -1 => {
-                config.as_mut().unwrap().y_grow();
-            }
-            LayoutCommands::GrowYmin(min) if skip_level == -1 => {
-                config.as_mut().unwrap().y_grow_min(*min);
-            }
-            LayoutCommands::GrowYminmax(min, max) if skip_level == -1 => {
-                config.as_mut().unwrap().y_grow_min_max(*min, *max);
-            }
+        }
 
-            LayoutCommands::FixedX(x) if skip_level == -1 => {
-                config.as_mut().unwrap().x_fixed(*x);
-            }
-            LayoutCommands::FixedY(y) if skip_level == -1 => {
-                config.as_mut().unwrap().y_fixed(*y);
-            }
+        match xml_command {
+            ConfigCommand::IfOpened(tag) => {
+                if skip_level == -1 && !get_bool(&tag, user_app) {
+                    skip_level = nesting_level;
+                }
 
-            LayoutCommands::PercentX(size) if skip_level == -1 => {
-                config.as_mut().unwrap().x_percent(*size);
+                nesting_level += 1;
             }
-            LayoutCommands::PercentY(size) if skip_level == -1 => {
-                config.as_mut().unwrap().y_percent(*size);
-            }
+            ConfigCommand::IfClosed => {
+                nesting_level -= 1;
 
-            LayoutCommands::GrowAll if skip_level == -1 => {
-                config.as_mut().unwrap().grow_all();
+                if skip_level == nesting_level {
+                    skip_level = -1;
+                }
             }
+            ConfigCommand::HoveredOpened => {
+                if skip_level == -1 && !layout_engine.hovered() {
+                    skip_level = nesting_level;
+                }
 
-            LayoutCommands::PaddingAll(padding) if skip_level == -1 => {
-                config.as_mut().unwrap().padding_all(*padding);
+                nesting_level += 1;
             }
-            LayoutCommands::PaddingTop(padding) if skip_level == -1 => {
-                config.as_mut().unwrap().padding_top(*padding);
-            }
-            LayoutCommands::PaddingBottom(padding) if skip_level == -1 => {
-                config.as_mut().unwrap().padding_bottom(*padding);
-            }
-            LayoutCommands::PaddingLeft(padding) if skip_level == -1 => {
-                config.as_mut().unwrap().padding_left(*padding);
-            }
-            LayoutCommands::PaddingRight(padding) if skip_level == -1 => {
-                config.as_mut().unwrap().padding_right(*padding);
-            }
+            ConfigCommand::HoveredClosed => {
+                nesting_level -= 1;
 
-            LayoutCommands::DirectionTTB if skip_level == -1 => {
-                config.as_mut().unwrap().direction(crate::layout::LayoutDirection::TopToBottom);
+                if skip_level == nesting_level {
+                    skip_level = -1;
+                }
             }
-            LayoutCommands::DirectionLTR if skip_level == -1 => {
-                config.as_mut().unwrap().direction(crate::layout::LayoutDirection::LeftToRight);
-            }
+            ConfigCommand::ClickedOpened(event) => {
+                if skip_level == -1 && (!clicked || !layout_engine.hovered()) {
+                    skip_level = nesting_level;
+                }
+                else {
+                    if let Some(event) = event {
+                        events.push(event.clone());
+                    }
+                }
 
-            LayoutCommands::Id(label) if skip_level == -1 => {
-                config.as_mut().unwrap().id(&label);
+                nesting_level += 1;
             }
+            ConfigCommand::ClickedClosed => {
+                nesting_level -= 1;
 
-            LayoutCommands::ChildGap(gap) if skip_level == -1 => {
-                config.as_mut().unwrap().child_gap(*gap);
+                if skip_level == nesting_level {
+                    skip_level = -1;
+                }
             }
-
-            LayoutCommands::ChildAlignmentXLeft if skip_level == -1 => {
-                config.as_mut().unwrap().align_children_x(crate::layout::LayoutAlignmentX::Left);
-            }
-            LayoutCommands::ChildAlignmentXRight if skip_level == -1 => {
-                config.as_mut().unwrap().align_children_x(crate::layout::LayoutAlignmentX::Right);
-            }
-            LayoutCommands::ChildAlignmentXCenter if skip_level == -1 => {
-                config.as_mut().unwrap().align_children_x(crate::layout::LayoutAlignmentX::Center);
-            }
-
-            LayoutCommands::ChildAlignmentYTop if skip_level == -1 => {
-                config.as_mut().unwrap().align_children_y(crate::layout::LayoutAlignmentY::Top);
-            }
-            LayoutCommands::ChildAlignmentYCenter if skip_level == -1 => {
-                config.as_mut().unwrap().align_children_y(crate::layout::LayoutAlignmentY::Center);
-            }
-            LayoutCommands::ChildAlignmentYBottom if skip_level == -1 => {
-                config.as_mut().unwrap().align_children_y(crate::layout::LayoutAlignmentY::Bottom);
-            }
-
-            LayoutCommands::Color(color) if skip_level == -1 => {
-                config.as_mut().unwrap().background_color(*color);
-            }
-
-            LayoutCommands::RadiusAll(radius) if skip_level == -1 => {
-                config.as_mut().unwrap().radius_all(*radius);
-            }
-            LayoutCommands::RadiusTopLeft(radius) if skip_level == -1 => {
-                config.as_mut().unwrap().radius_top_left(*radius);
-            }
-            LayoutCommands::RadiusTopRight(radius) if skip_level == -1 => {
-                config.as_mut().unwrap().radius_top_right(*radius);
-            }
-            LayoutCommands::RadiusBottomRight(radius) if skip_level == -1 => {
-                config.as_mut().unwrap().radius_bottom_right(*radius);
-            }
-            LayoutCommands::RadiusBottomLeft(radius) if skip_level == -1 => {
-                config.as_mut().unwrap().radius_bottom_left(*radius);
-            }
-
-            LayoutCommands::BorderAll(border, color) if skip_level == -1 => {
-                config.as_mut().unwrap().border_all(*border, *color);
-            }
-            LayoutCommands::BorderTop(border, color) if skip_level == -1 => {
-                config.as_mut().unwrap().border_top(*border, *color);
-            }
-            LayoutCommands::BorderBottom(border, color) if skip_level == -1 => {
-                config.as_mut().unwrap().border_bottom(*border, *color);
-            }
-            LayoutCommands::BorderLeft(border, color) if skip_level == -1 => {
-                config.as_mut().unwrap().border_left(*border, *color);
-            }
-            LayoutCommands::BorderRight(border, color) if skip_level == -1 => {
-                config.as_mut().unwrap().border_right(*border, *color);
-            }
-            LayoutCommands::BorderBetweenChildren(border, color) if skip_level == -1 => {
-                config.as_mut().unwrap().border_between_children(*border, *color);
-            }
-
-            LayoutCommands::TextOpened if skip_level == -1 => {
+            ConfigCommand::ElementOpened(_id)=> {
                 nesting_level += 1;
 
-                text_config = Some(layout_engine.open_text());
-            } 
-            LayoutCommands::TextClosed if skip_level == -1 => {
-                match text_config.is_some() {
-                    false => panic!("invalid xml stack"),
-                    true => {
-                        match text_content.is_some() {
-                            false => {
-                                match dynamic_text_content.is_some() {
-                                    false => {
-                                        let final_text_config = text_config.take().unwrap();
-                                        layout_engine.close_text("", final_text_config.end());
-                                    }
-                                    true => {
-                                        let final_text_config = text_config.take().unwrap();
-                                        let final_dyn_content = dynamic_text_content.take().unwrap();
-                                        layout_engine.close_text(&final_dyn_content, final_text_config.end());
-                                    }
-                                }
-                            }
-                            true => {
-                                let final_text_config = text_config.take().unwrap();
-                                layout_engine.close_text(text_content.take().unwrap(), final_text_config.end());
-                            }
-                        }
-                        
-                    },
+                if skip_level == -1 {
+                    layout_engine.open();
                 }
-
+            }
+            ConfigCommand::ElementClosed=> {
                 nesting_level -= 1;
-            }
-            LayoutCommands::FontId(id) if skip_level == -1 => {
-                text_config.as_mut().unwrap().font_id(*id);
-            }
-            LayoutCommands::TextAlignLeft if skip_level == -1 => {
-                text_config.as_mut().unwrap().alignment(crate::text::TextAlignment::Left);
-            }
-            LayoutCommands::TextAlignRight if skip_level == -1 => {
-                text_config.as_mut().unwrap().alignment(crate::text::TextAlignment::Right);
-            }
-            LayoutCommands::TextAlignCenter if skip_level == -1 => {
-                text_config.as_mut().unwrap().alignment(crate::text::TextAlignment::Center);
-            }
-            LayoutCommands::TextLineHeight(lh) if skip_level == -1 => {
-                text_config.as_mut().unwrap().line_height(*lh);
-            }
-            LayoutCommands::FontSize(size) if skip_level == -1 => {
-                text_config.as_mut().unwrap().font_size(*size);
-            }
-            LayoutCommands::TextContent(content) if skip_level == -1 => {
-                text_content = Some(content);
-            }
-            LayoutCommands::DynamicTextContent(content) if skip_level == -1 => {
-                match locals.is_some() {
-                    true => {
-                        match locals.as_ref().unwrap().get(content) {
-                            None => dynamic_text_content = Some(get_text(&content, user_app).unwrap()),
-                            Some(local) => {
-                                match local {
-                                    XMLType::Text(text) => dynamic_text_content = Some(text),
-                                    _ => dynamic_text_content = None
-                                }
-                            }
-                        }
-                    },
-                    false => dynamic_text_content = Some(get_text(&content, user_app).unwrap())
+
+                if skip_level == -1 {
+                    layout_engine.close();
                 }
             }
-            LayoutCommands::TextColor(color) if skip_level == -1 => {
-                text_config.as_mut().unwrap().color(color[0], color[1], color[2], color[3]);
-            }
-
-            LayoutCommands::Scroll(vertical, horizontal) if skip_level == -1 => {
-                config.as_mut().unwrap().scroll(*vertical, *horizontal);
-            }
-
+            
+            
             _other => {}//println!("unused layout command: {:}", other);}
         }
     }
