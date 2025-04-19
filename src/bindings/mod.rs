@@ -8,69 +8,6 @@ mod clay;
 
 pub use clay::*;
 
-
-#[derive(Clone, Copy)]
-pub enum VerticalAlignment{
-    Center,
-    Top,
-    Bottom,
-}
-
-impl Into<Clay_LayoutAlignmentY> for VerticalAlignment{
-    fn into(self) -> Clay_LayoutAlignmentY {
-        match self {
-            VerticalAlignment::Bottom => Clay_LayoutAlignmentY::CLAY_ALIGN_Y_BOTTOM,
-            VerticalAlignment::Center => Clay_LayoutAlignmentY::CLAY_ALIGN_Y_CENTER,
-            VerticalAlignment::Top => Clay_LayoutAlignmentY::CLAY_ALIGN_Y_TOP
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
-pub enum HorizontalAlignment{
-    Center,
-    Left,
-    Right
-}
-
-impl Into<Clay_LayoutAlignmentX> for HorizontalAlignment{
-    fn into(self) -> Clay_LayoutAlignmentX {
-        match self {
-            HorizontalAlignment::Left => Clay_LayoutAlignmentX::CLAY_ALIGN_X_LEFT,
-            HorizontalAlignment::Center => Clay_LayoutAlignmentX::CLAY_ALIGN_X_CENTER,
-            HorizontalAlignment::Right => Clay_LayoutAlignmentX::CLAY_ALIGN_X_RIGHT
-        }
-    }
-}
-
-pub enum FloatingAttachPoints{
-    LeftTop,
-    LeftCenter,
-    LeftBottom,
-    CenterTop,
-    CenterCenter,
-    CenterBottom,
-    RightTop,
-    RightCenter,
-    RightBottom
-}
-
-impl Into<Clay_FloatingAttachPointType> for FloatingAttachPoints{
-    fn into(self) -> Clay_FloatingAttachPointType {
-        match self {
-            FloatingAttachPoints::CenterBottom => Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_CENTER_BOTTOM,
-            FloatingAttachPoints::CenterCenter => Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_CENTER_CENTER,
-            FloatingAttachPoints::CenterTop => Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_CENTER_TOP,
-            FloatingAttachPoints::LeftBottom => Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_LEFT_BOTTOM,
-            FloatingAttachPoints::LeftCenter => Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_LEFT_CENTER,
-            FloatingAttachPoints::LeftTop => Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_LEFT_TOP,
-            FloatingAttachPoints::RightBottom => Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_RIGHT_BOTTOM,
-            FloatingAttachPoints::RightCenter => Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_RIGHT_CENTER,
-            FloatingAttachPoints::RightTop => Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_RIGHT_TOP,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy)]
 pub struct Color{
     pub r: f32,
