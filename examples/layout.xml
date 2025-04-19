@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-model href="https://raw.githubusercontent.com/lemleyautomation/telera-layout/main/layout.dtd" type="application/xml-dtd"?>
+
+<page name="Main">
+    <!-- <fragment-config name="layout expand">
+        <width type="grow" />
+        <height type="grow" />
+    </fragment-config>
+
+    <fragment-config name="content background config">
+        <color is="rgb(90,90,90)" />
+        <radius all="8" />
+    </fragment-config> -->
+
+    <fragment name="header button">
+        <element>
+            <layout>
+                <padding top="8" left="16" bottom="8" right="16" />
+                <color is="rgb(140,140,140)" />
+                <radius all="5" />
+                <hovered>
+                    <border all="2" color="black"/>
+                </hovered>
+            </layout>
+
+            <text>
+                <font-size is="16" />
+                <line-height is="20" />
+                <color is="white" />
+                <dyn-content from="label" />
+            </text>
+        </element>
+    </fragment>
+
+    <element id="outer container">
+        <layout>
+            <id is="outer container" />
+            <width type="grow" />
+            <height type="grow" />
+            <color is="rgb(43,41,51)" />
+            <direction is="ttb" />
+            <padding all="16" />
+            <child-gap is="16" />
+        </layout>
+
+        <element>
+            <layout>
+                <id is="header_bar" />
+                <color is="rgb(90,90,90)" />
+                <radius all="8" />
+                <width type="grow"/>
+                <height type="fixed" at="60" />
+                <padding left="16" right="16" top="8" bottom="8" />
+                <child-gap is="16" />
+                <align-children y="center" />
+            </layout>
+
+
+            <element>
+                <layout>
+                    <id is="file button" />
+                    <padding top="8" left="16" bottom="8" right="16" />
+                    <color is="rgb(140,140,140)" />
+                    <radius all="5" />
+                    <hovered>
+                        <border all="2" color="black"/>
+                    </hovered>
+                </layout>
+
+                <text>
+                    <font-size is="16" />
+                    <line-height is="20" />
+                    <color is="white" />
+                    <content>File</content>
+                </text>
+            </element>
+
+            <call name="header button">
+                <set local="label" text="Edit" />
+            </call>
+            <element>
+                <layout>
+                    <width type="grow" />
+                </layout>
+            </element>
+            <call name="header button">
+                <set local="label" text="Upload" />
+            </call>
+            <call name="header button">
+                <set local="label" text="Media" />
+            </call>
+            <call name="header button">
+                <set local="label" text="Support" />
+            </call>
+        </element>
+
+        <element>
+            <layout>
+                <id is="lower content" />
+                <child-gap is="8" />
+                <width type="grow" />
+                <height type="grow" />
+            </layout>
+
+            <element>
+                <layout>
+                    <id is="sidebar" />
+                    <direction is="ttb" />
+                    <color is="rgb(90,90,90)" />
+                    <radius all="8" />
+                    <padding all="16" />
+                    <child-gap is="8" />
+                    <width type="percent" at="0.25" />
+                    <height type="grow" />
+                </layout>
+
+                <list src="documents">
+                    <list-member name="title" />
+
+                    <element>
+                        <layout>
+                            <width type="grow" />
+                            <padding all="16" />
+                            <radius all="8" />
+                            <color is="rgb(120,120,120)" />
+                            <hovered>
+                                <border all="3" color="white" />
+                            </hovered>
+                            <clicked emit="Clicked">
+                                <color is="white"/>
+                            </clicked>
+                        </layout>
+
+                        <text>
+                            <font-size is="20" />
+                            <line-height is="24" />
+                            <color is="white" />
+                            <dyn-content from="title" />
+                        </text>
+                    </element>
+                </list>
+            </element>
+
+            <element>
+                <layout>
+                    <id is="main content" />
+                    <width type="grow" />
+                    <height type="grow"/>
+                    <scroll vertical="true" />
+                    <color is="rgb(90,90,90)" />
+                    <radius all="8" />
+                    <direction is="ttb" />
+                    <child-gap is="16" />
+                    <padding all="16" />
+                </layout>
+
+                <text>
+                    <font-size is="24" />
+                    <line-height is="28" />
+                    <color is="white" />
+                    <dyn-content from="selected title" />
+                </text>
+                <text>
+                    <font-size is="24" />
+                    <line-height is="28" />
+                    <color is="white" />
+                    <dyn-content from="selected contents" />
+                </text>
+            </element>
+        </element>
+    </element>
+</page>

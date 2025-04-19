@@ -15,8 +15,8 @@ pub use text_configuration::TextConfig;
 mod element_configuration;
 pub use element_configuration::ElementConfiguration;
 
-//mod render_commands;
-//pub use render_commands::*;
+mod xml_parse;
+pub use xml_parse::*;
 
 use std::{
     fmt::Debug, marker::PhantomData, os::raw::c_void
