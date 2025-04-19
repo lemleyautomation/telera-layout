@@ -217,12 +217,28 @@ impl ElementConfiguration{
         }
         self
     }
-    pub fn align_children_x(&mut self, alignment: HorizontalAlignment) -> &mut Self {
-        self.decleration.layout.childAlignment.x = alignment.into();
+    pub fn align_children_x_center(&mut self) -> &mut Self {
+        self.decleration.layout.childAlignment.x = Clay_LayoutAlignmentX::CLAY_ALIGN_X_CENTER;
         self
     }
-    pub fn align_children_y(&mut self, alignment: VerticalAlignment) -> &mut Self {
-        self.decleration.layout.childAlignment.y = alignment.into();
+    pub fn align_children_x_left(&mut self) -> &mut Self {
+        self.decleration.layout.childAlignment.x = Clay_LayoutAlignmentX::CLAY_ALIGN_X_LEFT;
+        self
+    }
+    pub fn align_children_x_right(&mut self) -> &mut Self {
+        self.decleration.layout.childAlignment.x = Clay_LayoutAlignmentX::CLAY_ALIGN_X_RIGHT;
+        self
+    }
+    pub fn align_children_y_center(&mut self) -> &mut Self {
+        self.decleration.layout.childAlignment.y = Clay_LayoutAlignmentY::CLAY_ALIGN_Y_CENTER;
+        self
+    }
+    pub fn align_children_y_top(&mut self) -> &mut Self {
+        self.decleration.layout.childAlignment.y = Clay_LayoutAlignmentY::CLAY_ALIGN_Y_TOP;
+        self
+    }
+    pub fn align_children_x_bottom(&mut self) -> &mut Self {
+        self.decleration.layout.childAlignment.y = Clay_LayoutAlignmentY::CLAY_ALIGN_Y_BOTTOM;
         self
     }
     pub fn color(&mut self, color: Color) -> &mut Self {
@@ -317,12 +333,76 @@ impl ElementConfiguration{
         self.decleration.floating.zIndex = z;
         self
     }
-    pub fn floating_attach_parent_attach_point(&mut self, attach_to: FloatingAttachPoints) -> &mut Self {
-        self.decleration.floating.attachPoints.parent = attach_to.into();
+    pub fn floating_attach_to_parent_at_top_left(&mut self) -> &mut Self {
+        self.decleration.floating.attachPoints.parent = Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_LEFT_TOP;
         self
     }
-    pub fn floating_attach_element_attach_point(&mut self, attach_to: FloatingAttachPoints) -> &mut Self {
-        self.decleration.floating.attachPoints.element = attach_to.into();
+    pub fn floating_attach_to_parent_at_center_left(&mut self) -> &mut Self {
+        self.decleration.floating.attachPoints.parent = Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_LEFT_CENTER;
+        self
+    }
+    pub fn floating_attach_to_parent_at_bottom_left(&mut self) -> &mut Self {
+        self.decleration.floating.attachPoints.parent = Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_LEFT_BOTTOM;
+        self
+    }
+    pub fn floating_attach_to_parent_at_top_center(&mut self) -> &mut Self {
+        self.decleration.floating.attachPoints.parent = Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_CENTER_TOP;
+        self
+    }
+    pub fn floating_attach_to_parent_at_center(&mut self) -> &mut Self {
+        self.decleration.floating.attachPoints.parent = Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_CENTER_CENTER;
+        self
+    }
+    pub fn floating_attach_to_parent_at_bottom_center(&mut self) -> &mut Self {
+        self.decleration.floating.attachPoints.parent = Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_CENTER_BOTTOM;
+        self
+    }
+    pub fn floating_attach_to_parent_at_top_right(&mut self) -> &mut Self {
+        self.decleration.floating.attachPoints.parent = Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_RIGHT_TOP;
+        self
+    }
+    pub fn floating_attach_to_parent_at_center_right(&mut self) -> &mut Self {
+        self.decleration.floating.attachPoints.parent = Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_RIGHT_CENTER;
+        self
+    }
+    pub fn floating_attach_to_parent_at_bottom_right(&mut self) -> &mut Self {
+        self.decleration.floating.attachPoints.parent = Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_RIGHT_BOTTOM;
+        self
+    }
+    pub fn floating_attach_element_at_top_left(&mut self) -> &mut Self {
+        self.decleration.floating.attachPoints.element =  Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_LEFT_TOP;
+        self
+    }
+    pub fn floating_attach_element_at_center_left(&mut self) -> &mut Self {
+        self.decleration.floating.attachPoints.element = Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_LEFT_CENTER;
+        self
+    }
+    pub fn floating_attach_element_at_bottom_left(&mut self) -> &mut Self {
+        self.decleration.floating.attachPoints.element = Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_LEFT_BOTTOM;
+        self
+    }
+    pub fn floating_attach_element_at_top_center(&mut self) -> &mut Self {
+        self.decleration.floating.attachPoints.element = Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_CENTER_TOP;
+        self
+    }
+    pub fn floating_attach_element_at_center(&mut self) -> &mut Self {
+        self.decleration.floating.attachPoints.element = Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_CENTER_CENTER;
+        self
+    }
+    pub fn floating_attach_element_at_bottom_center(&mut self) -> &mut Self {
+        self.decleration.floating.attachPoints.element = Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_CENTER_BOTTOM;
+        self
+    }
+    pub fn floating_attach_element_at_top_right(&mut self) -> &mut Self {
+        self.decleration.floating.attachPoints.element = Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_RIGHT_TOP;
+        self
+    }
+    pub fn floating_attach_element_at_center_right(&mut self) -> &mut Self {
+        self.decleration.floating.attachPoints.element = Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_RIGHT_CENTER;
+        self
+    }
+    pub fn floating_attach_element_at_bottom_right(&mut self) -> &mut Self {
+        self.decleration.floating.attachPoints.element = Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_RIGHT_BOTTOM;
         self
     }
     pub fn floating_pointer_pass_through(&mut self) -> &mut Self {

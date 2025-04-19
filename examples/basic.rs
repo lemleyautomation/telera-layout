@@ -1,4 +1,3 @@
-use telera_layout::element;
 use telera_layout::LayoutEngine;
 use telera_layout::ElementConfiguration;
 use telera_layout::TextConfig;
