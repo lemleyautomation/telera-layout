@@ -12,7 +12,8 @@
         <radius all="8" />
     </fragment-config> -->
 
-    <fragment name="header button">
+
+    <reusable name="header button">
         <element>
             <layout>
                 <padding top="8" left="16" bottom="8" right="16" />
@@ -30,7 +31,7 @@
                 <dyn-content from="label" />
             </text>
         </element>
-    </fragment>
+    </reusable>
 
     <element id="outer container">
         <layout>

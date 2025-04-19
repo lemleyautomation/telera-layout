@@ -1,4 +1,4 @@
-<!ELEMENT page (element|grow|fragment|fragment-config)*>
+<!ELEMENT page (element|grow|reusable)*>
 <!ATTLIST page name CDATA #REQUIRED>
 
 <!ELEMENT element (element|config|text|hovered|clicked|grow|use|list)*>
