@@ -1,172 +1,233 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<?xml-model href="https://raw.githubusercontent.com/lemleyautomation/telera-layout/main/layout.dtd" type="application/xml-dtd"?>
+<?xml-model href="../layout.dtd" type="application/xml-dtd"?>
+
+<!-- https://raw.githubusercontent.com/lemleyautomation/telera-layout/main/layout.dtd -->
 
 <page name="Main">
-    <!-- <fragment-config name="layout expand">
-        <width type="grow" />
-        <height type="grow" />
-    </fragment-config>
+    <reusable name="layout expand">
+        <element-config>
+            <width-grow />
+            <height-grow />
+        </element-config>
+    </reusable>
 
-    <fragment-config name="content background config">
-        <color is="rgb(90,90,90)" />
-        <radius all="8" />
-    </fragment-config> -->
-
+    <reusable name="content background color">
+        <element-config>
+            <color is="rgb(90,90,90)" />
+        </element-config>
+    </reusable>
 
     <reusable name="header button">
         <element>
-            <layout>
-                <padding top="8" left="16" bottom="8" right="16" />
+            <element-config>
+                <padding-top is="8" />
+                <padding-bottom is="8" />
+                <padding-left is="16" />
+                <padding-right is="16" />
                 <color is="rgb(140,140,140)" />
-                <radius all="5" />
+                <radius-all is="5" />
                 <hovered>
-                    <border all="2" color="black"/>
+                    <border-all is="2" color="black"/>
                 </hovered>
-            </layout>
+            </element-config>
 
-            <text>
-                <font-size is="16" />
-                <line-height is="20" />
-                <color is="white" />
+            <text-element>
+                <text-config>
+                    <font-size is="16" />
+                    <line-height is="20" />
+                    <color is="white" />
+                </text-config>
                 <dyn-content from="label" />
-            </text>
+            </text-element>
+        </element>
+    </reusable>
+
+    <reusable name="sidebar button">
+        <element-config>
+            <width-grow />
+            <padding-all is="16" />
+        </element-config>
+    </reusable>
+
+    <reusable name="drop down menu item">
+        <element>
+            <element-config>
+                <padding-all is="16" />
+            </element-config>
+            <text-element>
+                <text-config>
+                    <font-size is="16" />
+                    <color is="white" />
+                </text-config>
+                <dyn-content from="label" />
+            </text-element>
         </element>
     </reusable>
 
     <element id="outer container">
-        <layout>
+        <element-config>
             <id is="outer container" />
-            <width type="grow" />
-            <height type="grow" />
+            <use name="layout expand"></use>
             <color is="rgb(43,41,51)" />
             <direction is="ttb" />
-            <padding all="16" />
+            <padding-all is="16" />
             <child-gap is="16" />
-        </layout>
+        </element-config>
 
         <element>
-            <layout>
-                <id is="header_bar" />
-                <color is="rgb(90,90,90)" />
-                <radius all="8" />
-                <width type="grow"/>
-                <height type="fixed" at="60" />
-                <padding left="16" right="16" top="8" bottom="8" />
+            <element-config>
+                <id is="header bar" />
+                <use name="content background color"></use>
+                <radius-all is="8" />
+                <width-grow/>
+                <height-fixed at="60" />
+                <padding-top is="8" />
+                <padding-bottom is="8" />
+                <padding-left is="16" />
+                <padding-right is="16" />
                 <child-gap is="16" />
-                <align-children y="center" />
-            </layout>
+                <align-children-y to="center" />
+            </element-config>
 
 
             <element>
-                <layout>
+                <element-config>
                     <id is="file button" />
-                    <padding top="8" left="16" bottom="8" right="16" />
+                    <padding-top is="8" />
+                    <padding-bottom is="8" />
+                    <padding-left is="16" />
+                    <padding-right is="16" />
                     <color is="rgb(140,140,140)" />
-                    <radius all="5" />
+                    <radius-all is="5" />
                     <hovered>
-                        <border all="2" color="black"/>
+                        <border-all is="2" color="black"/>
                     </hovered>
-                </layout>
+                </element-config>
 
-                <text>
-                    <font-size is="16" />
-                    <line-height is="20" />
-                    <color is="white" />
+                <text-element>
+                    <text-config>
+                        <font-size is="16" />
+                        <line-height is="20" />
+                        <color is="white" />
+                    </text-config>
                     <content>File</content>
-                </text>
+                </text-element>
+
+                <!-- TODO: add floating dropdown menu -->
             </element>
 
-            <call name="header button">
-                <set local="label" text="Edit" />
-            </call>
+            <use name="header button">
+                <set-text local="label" to="Edit" />
+            </use>
             <element>
-                <layout>
-                    <width type="grow" />
-                </layout>
+                <element-config>
+                    <width-grow />
+                </element-config>
             </element>
-            <call name="header button">
-                <set local="label" text="Upload" />
-            </call>
-            <call name="header button">
-                <set local="label" text="Media" />
-            </call>
-            <call name="header button">
-                <set local="label" text="Support" />
-            </call>
+            <use name="header button">
+                <set-text local="label" to="Upload" />
+            </use>
+            <use name="header button">
+                <set-text local="label" to="Media" />
+            </use>
+            <use name="header button">
+                <set-text local="label" to="Support" />
+            </use>
         </element>
 
         <element>
-            <layout>
+            <element-config>
                 <id is="lower content" />
-                <child-gap is="8" />
-                <width type="grow" />
-                <height type="grow" />
-            </layout>
+                <child-gap is="16" />
+                <use name="layout expand"></use>
+            </element-config>
 
             <element>
-                <layout>
+                <element-config>
                     <id is="sidebar" />
+                    <use name="content background color"></use>
                     <direction is="ttb" />
-                    <color is="rgb(90,90,90)" />
-                    <radius all="8" />
-                    <padding all="16" />
+                    <padding-all is="16" />
                     <child-gap is="8" />
-                    <width type="percent" at="0.25" />
-                    <height type="grow" />
-                </layout>
+                    <width-fixed at="250" />
+                    <height-grow />
+                    <radius-all is="8" />
+                </element-config>
 
                 <list src="documents">
                     <list-member name="title" />
+                    <list-member name="selected" />
+                    <list-member name="clicked" />
 
-                    <element>
-                        <layout>
-                            <width type="grow" />
-                            <padding all="16" />
-                            <radius all="8" />
+                    <element if="selected">
+                        <element-config>
+                            <use name="sidebar button"></use>
                             <color is="rgb(120,120,120)" />
-                            <hovered>
-                                <border all="3" color="white" />
-                            </hovered>
-                            <clicked emit="Clicked">
-                                <color is="white"/>
+                            <radius-all is="8"/>
+                            <clicked>
+                                <border-all is="2" color="white" />
                             </clicked>
-                        </layout>
-
-                        <text>
-                            <font-size is="20" />
-                            <line-height is="24" />
-                            <color is="white" />
+                        </element-config>
+                        <text-element>
+                            <text-config>
+                                <font-size is="20" />
+                                <color is="black" />
+                            </text-config>
                             <dyn-content from="title" />
-                        </text>
+                        </text-element>
+                    </element>
+
+                    <element if-not="selected">
+                        <element-config>
+                            <use name="sidebar button"></use>
+                            <hovered>
+                                <color is="rgb(120, 120, 120)" />
+                            </hovered>
+                            <radius-all is="8" />
+                            <clicked emit="clicked">
+                                <border-all is="2" color="white" />
+                            </clicked>
+                        </element-config>
+                        <text-element>
+                            <text-config>
+                                <font-size is="20" />
+                                <color is="black" />
+                            </text-config>
+                            <dyn-content from="title" />
+                        </text-element>
                     </element>
                 </list>
             </element>
 
             <element>
-                <layout>
+                <element-config>
                     <id is="main content" />
-                    <width type="grow" />
-                    <height type="grow"/>
+                    <use name="content background color"></use>
                     <scroll vertical="true" />
-                    <color is="rgb(90,90,90)" />
-                    <radius all="8" />
                     <direction is="ttb" />
                     <child-gap is="16" />
-                    <padding all="16" />
-                </layout>
+                    <padding-all is="16" />
+                    <use name="layout expand"></use>
+                    <radius-all is="8" />
+                </element-config>
 
-                <text>
-                    <font-size is="24" />
-                    <line-height is="28" />
-                    <color is="white" />
+                <text-element>
+                    <text-config>
+                        <font-size is="24" />
+                        <line-height is="28" />
+                        <color is="white" />
+                    </text-config>
                     <dyn-content from="selected title" />
-                </text>
-                <text>
-                    <font-size is="24" />
-                    <line-height is="28" />
-                    <color is="white" />
+                </text-element>
+
+                <text-element>
+                    <text-config>
+                        <font-size is="24" />
+                        <line-height is="28" />
+                        <color is="white" />
+                    </text-config>
                     <dyn-content from="selected contents" />
-                </text>
+                </text-element>
             </element>
         </element>
     </element>

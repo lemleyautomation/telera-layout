@@ -30,23 +30,31 @@ pub enum LayoutCommandType<CustomEvent: FromStr+Clone+PartialEq>{
 
 #[derive(Clone, Debug, Display, PartialEq)]
 pub enum FlowControlCommand<CustomEvent: FromStr+Clone+PartialEq>{
-    ElementOpened(Option<String>),
+    ElementOpened{id: Option<String>},
     ElementClosed,
 
-    ConfigOpened(Option<String>),
+    TextElementOpened,
+    TextElementClosed,
+
+    ConfigOpened,
     ConfigClosed,
 
-    TextConfigOpened(Option<String>),
+    TextConfigOpened,
     TextConfigClosed,
     
-    ListOpened(String),
+    ListOpened{src: String},
     ListClosed,
-    ListMember(String),
+    ListMember{name: String},
 
-    CallOpened(String),
-    CallClosed,
+    UseOpened{name: String},
+    UseClosed,
 
-    Get(String, String),
+    GetBool(String),
+    GetNumeric(String),
+    GetText(String),
+    GetImage(String),
+    GetColor(String),
+    GetEvent(String),
 
     SetBool(String, bool),
     SetNumeric(String, f32),
@@ -61,6 +69,7 @@ pub enum FlowControlCommand<CustomEvent: FromStr+Clone+PartialEq>{
     HoveredOpened,
     HoveredClosed,
 
+    // use clay_onhover and retreive the pointerdata from it
     ClickedOpened(Option<CustomEvent>),
     ClickedClosed,
 }
@@ -126,7 +135,6 @@ pub enum ConfigCommand{
 
     // todo:
     // floating elements
-    // images
     // custom elements
     // custom layouts
 }
@@ -149,9 +157,7 @@ pub enum TextConfigCommand{
 enum ParsingMode{
     #[default]
     Normal,
-    Fragment,
-    ElementConfig,
-    Textconfig,
+    Reusable
 }
 
 #[allow(non_camel_case_types)]
@@ -175,8 +181,8 @@ enum LayoutData {
 
 #[derive(Debug, Display)]
 pub enum ParserError{
-    UnNamedFragment,
-    FragmentCallUnNamed,
+    UnNamedReusable,
+    UnnamedUseTag,
     FileNotAccessable,
     ReaderError,
     UnknownTag(Vec<u8>),
@@ -331,9 +337,9 @@ pub struct Parser<UserEvents: FromStr+Clone+PartialEq>{
     current_page_name: String,
     pages: HashMap<String, Vec<LayoutCommandType<UserEvents>>>,
 
-    current_fragment: Vec<LayoutCommandType<UserEvents>>,
-    fragment_name: String,
-    fragments: HashMap<String, Vec<LayoutCommandType<UserEvents>>>,
+    current_reusable: Vec<LayoutCommandType<UserEvents>>,
+    reusable_name: String,
+    reusable: HashMap<String, Vec<LayoutCommandType<UserEvents>>>,
 
     nesting_level: i32,
     xml_nesting_stack: Vec<i32>,
@@ -360,16 +366,16 @@ impl<UserEvents: FromStr+Clone+PartialEq> Parser<UserEvents>{
                 Ok(Event::Start(e)) => {
                     self.nest();
                     match e.name().as_ref() {
-                        b"fragment" => {
+                        b"reusable" => {
                             match e.cdata("name") {
-                                None => return Err(ParserError::UnNamedFragment),
-                                Some(fragment_name) => self.open_fragment(fragment_name),
+                                None => return Err(ParserError::UnNamedReusable),
+                                Some(reusable_name) => self.open_reusable(reusable_name),
                             }
                         }
-                        b"call" => {
+                        b"use" => {
                             match e.cdata("name") {
-                                None => return Err(ParserError::FragmentCallUnNamed),
-                                Some(fragment_name) => self.push(ConfigCommand::CallOpened(fragment_name.clone()))
+                                None => return Err(ParserError::UnnamedUseTag),
+                                Some(fragment_name) => self.push(LayoutCommandType::FlowControl(FlowControlCommand::UseOpened{name:fragment_name.clone()})),
                             }
                         }
                         b"page" => {
@@ -713,7 +719,7 @@ impl<UserEvents: FromStr+Clone+PartialEq> Parser<UserEvents>{
             }
         }
         match self.mode {
-            ParsingMode::Fragment => self.current_fragment.push(tag),
+            ParsingMode::Reusable => self.current_reusable.push(tag),
             ParsingMode::Normal => self.current_page.push(tag),
             _ => todo!()
         }
@@ -751,14 +757,14 @@ impl<UserEvents: FromStr+Clone+PartialEq> Parser<UserEvents>{
         let content = self.text_content.take().unwrap();
         self.push(LayoutCommandType::TextConfig(TextConfigCommand::Content(content)));
     }
-    fn open_fragment(&mut self, name: String){
-        self.fragment_name = name;
-        self.current_fragment.clear();
-        self.mode = ParsingMode::Fragment;
+    fn open_reusable(&mut self, name: String){
+        self.reusable_name = name;
+        self.current_reusable.clear();
+        self.mode = ParsingMode::Reusable;
     }
     fn close_fragment(&mut self){
-        let new_fragment = self.current_fragment.clone();
-        self.fragments.insert(self.fragment_name.clone(), new_fragment);
+        let new_fragment = self.current_reusable.clone();
+        self.reusable.insert(self.reusable_name.clone(), new_fragment);
         self.mode = ParsingMode::Normal;
     }
 
