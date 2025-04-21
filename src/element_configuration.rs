@@ -270,46 +270,32 @@ impl ElementConfiguration{
         self.decleration.cornerRadius.bottomLeft = radius;
         self
     }
-    pub fn border_all(&mut self, width: u16, color: Color) -> &mut Self {
-        self.decleration.border = Clay_BorderElementConfig { 
-            color: Clay_Color { r: color.r, g: color.g, b: color.b, a: color.a }, 
-            width: Clay_BorderWidth { left: width, right: width, top: width, bottom: width, betweenChildren: width } 
-        };
+    pub fn border_color(&mut self, color: Color) -> &mut Self {
+        self.decleration.border.color = Clay_Color { r: color.r, g: color.g, b: color.b, a: color.a };
         self
     }
-    pub fn border_top(&mut self, width: u16, color: Option<Color>) -> &mut Self {
+    pub fn border_all(&mut self, width: u16) -> &mut Self {
+        self.decleration.border.width = Clay_BorderWidth { left: width, right: width, top: width, bottom: width, betweenChildren: width };
+        self
+    }
+    pub fn border_top(&mut self, width: u16) -> &mut Self {
         self.decleration.border.width.top = width;
-        if let Some(color) = color {
-            self.decleration.border.color = color.into();
-        }
         self
     }
-    pub fn border_left(&mut self, width: u16, color: Option<Color>) -> &mut Self {
+    pub fn border_left(&mut self, width: u16) -> &mut Self {
         self.decleration.border.width.left = width;
-        if let Some(color) = color {
-            self.decleration.border.color = color.into();
-        }
         self
     }
-    pub fn border_bottom(&mut self, width: u16, color: Option<Color>) -> &mut Self {
+    pub fn border_bottom(&mut self, width: u16) -> &mut Self {
         self.decleration.border.width.bottom = width;
-        if let Some(color) = color {
-            self.decleration.border.color = color.into();
-        }
         self
     }
-    pub fn border_right(&mut self, width: u16, color: Option<Color>) -> &mut Self {
+    pub fn border_right(&mut self, width: u16) -> &mut Self {
         self.decleration.border.width.right = width;
-        if let Some(color) = color {
-            self.decleration.border.color = color.into();
-        }
         self
     }
-    pub fn border_between_children(&mut self, width: u16, color: Option<Color>) -> &mut Self {
+    pub fn border_between_children(&mut self, width: u16) -> &mut Self {
         self.decleration.border.width.betweenChildren = width;
-        if let Some(color) = color {
-            self.decleration.border.color = color.into();
-        }
         self
     }
     pub fn scroll(&mut self, vertical: bool, horizontal: bool) -> &mut Self {

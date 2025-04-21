@@ -20,7 +20,7 @@
     (color|dyn-color)|
     radius-all|radius-top-left|radius-top-right|
     radius-bottom-left|radius-bottom-right|
-    border-all|border-top|border-bottom|
+    border-color|border-all|border-top|border-bottom|
     border-left|border-right|border-between-children|
     scroll|
     image
@@ -50,7 +50,7 @@
     (color|dyn-color)|
     radius-all|radius-top-left|radius-top-right|
     radius-bottom-left|radius-bottom-right|
-    border-all|border-top|border-bottom|
+    border-color|border-all|border-top|border-bottom|
     border-left|border-right|border-between-children|
     scroll|
     image
@@ -70,7 +70,7 @@
     (color|dyn-color)|
     radius-all|radius-top-left|radius-top-right|
     radius-bottom-left|radius-bottom-right|
-    border-all|border-top|border-bottom|
+    border-color|border-all|border-top|border-bottom|
     border-left|border-right|border-between-children|
     scroll|
     image
@@ -133,11 +133,10 @@
 <!ATTLIST get-event local CDATA #REQUIRED>
 <!ATTLIST get-event from CDATA #REQUIRED>
 
-<!ELEMENT list (list-member*,(element|use)*)>
+<!ELEMENT list (
+    (get-bool|get-numeric|get-text|get-image|get-color|get-event)*
+    ,(element|use)*)>
 <!ATTLIST list src CDATA #REQUIRED>
-
-<!ELEMENT list-member EMPTY>
-<!ATTLIST list-member name CDATA #REQUIRED>
 
 <!ELEMENT grow EMPTY>
 
@@ -220,29 +219,28 @@
 <!ELEMENT radius-bottom-right EMPTY>
 <!ATTLIST radius-bottom-right is CDATA #REQUIRED>
 
+<!ELEMENT border-color EMPTY>
+<!ATTLIST border-color is CDATA #REQUIRED>
+<!ELEMENT border-dynamic-color EMPTY>
+<!ATTLIST border-dynamic-color from CDATA #REQUIRED>
+
 <!ELEMENT border-all EMPTY>
 <!ATTLIST border-all is CDATA #REQUIRED>
-<!ATTLIST border-all color CDATA #REQUIRED>
 
 <!ELEMENT border-top EMPTY>
 <!ATTLIST border-top is CDATA #REQUIRED>
-<!ATTLIST border-top color CDATA #REQUIRED>
 
 <!ELEMENT border-bottom EMPTY>
 <!ATTLIST border-bottom is CDATA #REQUIRED>
-<!ATTLIST border-bottom color CDATA #REQUIRED>
 
 <!ELEMENT border-right EMPTY>
 <!ATTLIST border-right is CDATA #REQUIRED>
-<!ATTLIST border-right color CDATA #REQUIRED>
 
 <!ELEMENT border-left EMPTY>
 <!ATTLIST border-left is CDATA #REQUIRED>
-<!ATTLIST border-left color CDATA #REQUIRED>
 
 <!ELEMENT border-between-children EMPTY>
 <!ATTLIST border-between-children is CDATA #REQUIRED>
-<!ATTLIST border-between-children color CDATA #REQUIRED>
 
 <!ELEMENT scroll EMPTY>
 <!ATTLIST scroll vertical (true|false) "false">

@@ -231,6 +231,16 @@ impl<ImageElementData: Debug + Default, CustomElementData: Debug + Default, Cust
         unsafe { Clay_Hovered() }
     }
 
+    unsafe extern "C" fn call_back_handler(id: Clay_ElementId, pointer_data: Clay_PointerData, user_data: isize){
+
+    }
+
+    pub fn on_click<callback: Fn()>(&mut self, callback_function: callback){
+        unsafe {
+            Clay_OnHover(Some(LayoutEngine::<(),(),()>::call_back_handler), 0);
+        }
+    }
+
     pub fn pointer_over(&self, cfg: Clay_ElementId) -> bool {
         unsafe { Clay_PointerOver(cfg) }
     }

@@ -34,6 +34,12 @@ impl Into<Color> for Clay_Color{
     }
 }
 
+impl Into<Color> for [u8;4] {
+    fn into(self) -> Color {
+        Color { r: self[0] as f32, g: self[1] as f32, b: self[2] as f32, a: self[3] as f32 }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct BoundingBox{
     pub x: f32,

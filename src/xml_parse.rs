@@ -1,6 +1,8 @@
-use std::{collections::HashMap, fmt::Debug, fs, path::Path, str::FromStr};
+use std::{collections::HashMap, fmt::Debug, str::FromStr};
 
-use quick_xml::events::Event;
+use csscolorparser;
+
+use quick_xml::events::Event as XMLEvent;
 use quick_xml::reader::Reader;
 use quick_xml::events::BytesStart;
 use quick_xml::Decoder;
@@ -8,28 +10,32 @@ use strum_macros::{Display, EnumString};
 
 use crate::{Color, ElementConfiguration, LayoutEngine, TextConfig};
 
-#[derive(Default, Clone, Debug, PartialEq)]
-pub enum XMLType<'render_pass, ImageElementData, CustomEvent: FromStr+Clone+PartialEq>{
-    Bool(bool),
-    Numeric(f32),
-    Text(&'render_pass str),
-    Image(&'render_pass ImageElementData),
-    Color([f32;4]),
-    ListLength(usize),
-    Event(CustomEvent),
-    #[default]
-    None,
+#[derive(Debug, Display)]
+pub enum ParserError{
+    RequiredAttributeValueMissing,
+    UnNamedPage,
+    UnSpecifiedIdTag,
+    ListWithoutSource,
+    UnNamedReusable,
+    UnnamedUseTag,
+    FileNotAccessable,
+    ReaderError,
+    UnknownTag(Vec<u8>),
 }
 
 #[derive(Clone, Debug, Display, PartialEq)]
-pub enum LayoutCommandType<CustomEvent: FromStr+Clone+PartialEq>{
-    FlowControl(FlowControlCommand<CustomEvent>),
+pub enum LayoutCommandType<Event>
+where
+    Event: Clone+Debug+PartialEq
+{
+    FlowControl(FlowControlCommand),
+    PageData(PageDataCommand<Event>),
     ElementConfig(ConfigCommand),
     TextConfig(TextConfigCommand),
 }
 
 #[derive(Clone, Debug, Display, PartialEq)]
-pub enum FlowControlCommand<CustomEvent: FromStr+Clone+PartialEq>{
+pub enum FlowControlCommand{
     ElementOpened{id: Option<String>},
     ElementClosed,
 
@@ -49,29 +55,54 @@ pub enum FlowControlCommand<CustomEvent: FromStr+Clone+PartialEq>{
     UseOpened{name: String},
     UseClosed,
 
-    GetBool(String),
-    GetNumeric(String),
-    GetText(String),
-    GetImage(String),
-    GetColor(String),
-    GetEvent(String),
-
-    SetBool(String, bool),
-    SetNumeric(String, f32),
-    SetText(String, String),
-    SetImage(String),
-    SetColor(String, Color),
-    SetListLength(String, usize),
-
-    IfOpened(String),
+    IfOpened{condition: String},
+    IfNotOpened{condition: String},
     IfClosed,
 
     HoveredOpened,
     HoveredClosed,
 
     // use clay_onhover and retreive the pointerdata from it
-    ClickedOpened(Option<CustomEvent>),
+    ClickedOpened{event: Option<String>},
     ClickedClosed,
+}
+
+#[derive(Clone, Debug, Display, PartialEq)]
+pub enum PageDataCommand<Event>
+where
+    Event: Clone+Debug+PartialEq
+{
+    SetBool{local: String, to:bool},
+    SetNumeric{local: String, to:f32},
+    SetText{local: String, to:String},
+    SetColor{local: String, to:Color},
+    SetEvent{local: String, to:Event},
+
+    GetBool{local: String, from:String},
+    GetNumeric{local: String, from:String},
+    GetText{local: String, from:String},
+    GetImage{local: String, from:String},
+    GetColor{local: String, from:String},
+    GetEvent{local: String, from:String},
+}
+
+impl<Event: Clone+Debug+PartialEq> PageDataCommand<Event>{
+    fn get_local(&self) -> String {
+        match self {
+            Self::GetBool { local, from:_ } => local.to_string(),
+            Self::GetNumeric { local, from:_ } => local.to_string(),
+            Self::GetText { local, from:_ } => local.to_string(),
+            Self::GetImage { local, from:_ } => local.to_string(),
+            Self::GetColor { local, from:_ } => local.to_string(),
+            Self::GetEvent { local, from:_ } => local.to_string(),
+            
+            Self::SetBool { local, to:_ } => local.to_string(),
+            Self::SetNumeric { local, to:_ } => local.to_string(),
+            Self::SetText { local, to:_ } => local.to_string(),
+            Self::SetColor { local, to:_ } => local.to_string(),
+            Self::SetEvent { local, to:_ } => local.to_string(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Display, PartialEq)]
@@ -80,17 +111,17 @@ pub enum ConfigCommand{
 
     GrowAll,
     GrowX,
-    GrowXmin(f32),
-    GrowXminmax(f32, f32),
+    GrowXmin{min: f32},
+    GrowXminmax{min: f32, max:f32},
     GrowY,
-    GrowYmin(f32),
-    GrowYminmax(f32, f32),
+    GrowYmin{min: f32},
+    GrowYminmax{min: f32, max:f32},
     FitX,
-    FitXmin(f32),
-    FitXminmax(f32, f32),
+    FitXmin{min: f32},
+    FitXminmax{min: f32, max:f32},
     FitY,
-    FitYmin(f32),
-    FitYminmax(f32, f32),
+    FitYmin{min: f32},
+    FitYminmax{min: f32, max:f32},
     FixedX(f32),
     FixedY(f32),
     PercentX(f32),
@@ -115,6 +146,7 @@ pub enum ConfigCommand{
     ChildAlignmentYBottom,
 
     Color(Color),
+    DynamicColor(String),
 
     RadiusAll(f32),
     RadiusTopLeft(f32),
@@ -122,12 +154,14 @@ pub enum ConfigCommand{
     RadiusBottomRight(f32),
     RadiusBottomLeft(f32),
 
-    BorderAll(f32, Color),
-    BorderTop(f32, Option<Color>),
-    BorderLeft(f32, Option<Color>),
-    BorderBottom(f32, Option<Color>),
-    BorderRight(f32, Option<Color>),
-    BorderBetweenChildren(f32, Option<Color>),
+    BorderColor(Color),
+    BorderDynamicColor(String),
+    BorderAll(f32),
+    BorderTop(f32),
+    BorderLeft(f32),
+    BorderBottom(f32),
+    BorderRight(f32),
+    BorderBetweenChildren(f32),
 
     Scroll(bool, bool),
 
@@ -171,21 +205,12 @@ enum SizeType{
 
 #[allow(non_camel_case_types)]
 #[derive(EnumString, PartialEq)]
-enum LayoutData {
+enum AlignmentDirection {
     left,
     right,
     center,
     top,
     bottom,
-}
-
-#[derive(Debug, Display)]
-pub enum ParserError{
-    UnNamedReusable,
-    UnnamedUseTag,
-    FileNotAccessable,
-    ReaderError,
-    UnknownTag(Vec<u8>),
 }
 
 trait Cdata {
@@ -210,136 +235,89 @@ impl Cdata for BytesStart<'_>{
     }
 }
 
-pub trait Get<ImageElementData, CustomEvent: FromStr+Clone+PartialEq>{
-    #[allow(unused_variables)]
-    fn get<'render_pass, 'application>(&'application self, name: &str) -> Option<XMLType::<'render_pass, ImageElementData, CustomEvent>> where 'application: 'render_pass{
+#[allow(unused_variables)]
+pub trait ParserDataAccess<Image, Event: FromStr+Clone+PartialEq>{
+    fn get_bool(&self, name: &str) -> Option<bool>{
         None
     }
-    #[allow(unused_variables)]
-    fn get_list_member<'render_pass, 'application>(&'application self, list_name: &str, list_index: usize, list_member: &str) -> Option<XMLType::<'render_pass, ImageElementData, CustomEvent>> where 'application: 'render_pass{
+    fn get_numeric(&self, name: &str) -> Option<f32>{
+        None
+    }
+    fn get_list_length(&self, name: &str) -> Option<i32>{
+        None
+    }
+    fn get_text<'render_pass, 'application>(&'application self, name: &str) -> Option<&'render_pass str> where 'application: 'render_pass{
+        None
+    }
+    fn get_image<'render_pass, 'application>(&'application self, name: &str ) -> Option<&'render_pass Image> where 'application: 'render_pass{
+        None
+    }
+    fn get_color<'render_pass, 'application>(&'application self, name: &str ) -> Option<&'render_pass Color> where 'application: 'render_pass{
+        None
+    }
+    fn get_event<'render_pass, 'application>(&'application self, name: &str ) -> Option<&'render_pass Event> where 'application: 'render_pass{
         None
     }
 }
 
-fn set_sizing_command<'a, UserEvents: FromStr+Clone+PartialEq>(bytes_start: &'a mut BytesStart, parser: &mut Parser<UserEvents>, horizontal: bool){
-    let size_type = match bytes_start.cdata("type") {
-        None => None,
-        Some(size_type_string) => {
-            match SizeType::from_str(&size_type_string) {
-                Err(_) => None,
-                Ok(size_type) => Some(size_type)
-            }
-        }
-    };
+enum SsizeType {
+    None,
+    Min{min: f32},
+    MinMax{min: f32, max:f32},
+    At{at: f32}
+}
 
-    match size_type {
-        None => {
-            match horizontal {
-                true => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::FitX)),
-                false => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::FitY)),
-            }
-            return;
+fn parse<'a, T: FromStr+Default>(name: &str, bytes_start: &'a mut BytesStart) -> (T, bool) {
+    if let Some(value) = bytes_start.cdata(name) {
+        match T::from_str(&value) {
+            Err(_) => (T::default(), true),
+            Ok(value) => (value, true)
         }
-        Some(size_type) => {
-            match size_type {
-                SizeType::fit => {
-                    if let Some(min) = bytes_start.cdata("min") {
-                        if let Ok(min) = f32::from_str(&min){
-                            if let Some(max) = bytes_start.cdata("max") {
-                                if let Ok(max) = f32::from_str(&max) {
-                                    match horizontal {
-                                        true => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::FitXminmax(min, max))),
-                                        false => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::FitYminmax(min, max))),
-                                    }
-                                    return;
-                                }
-                            }
-                            match horizontal {
-                                true => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::FitXmin(min))),
-                                false => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::FitYmin(min))),
-                            }
-                            return;
-                        }
-                    }
-                    match horizontal {
-                        true => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::FitX)),
-                        false => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::FitY)),
-                    }
-                    return;
-                }
-                SizeType::grow => {
-                    if let Some(min) = bytes_start.cdata("min") {
-                        if let Ok(min) = f32::from_str(&min){
-                            if let Some(max) = bytes_start.cdata("max") {
-                                if let Ok(max) = f32::from_str(&max) {
-                                    match horizontal {
-                                        true => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::GrowXminmax(min, max))),
-                                        false => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::GrowYminmax(min, max))),
-                                    }
-                                    return;
-                                }
-                            }
-                            match horizontal {
-                                true => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::GrowXmin(min))),
-                                false => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::GrowYmin(min))),
-                            }
-                            return;
-                        }
-                    }
-                    match horizontal {
-                        true => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::GrowX)),
-                        false => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::GrowY)),
-                    }
-                    return;
-                }
-                SizeType::fixed => {
-                    if let Some(at) = bytes_start.cdata("at") {
-                        if let Ok(at) = f32::from_str(&at) {
-                            match horizontal {
-                                true => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::FixedX(at))),
-                                false => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::FixedY(at))),
-                            }
-                            return;
-                        }
-                    }
-                    match horizontal {
-                        true => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::FitX)),
-                        false => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::FitY)),
-                    }
-                    return;
-                }
-                SizeType::percent => {
-                    if let Some(at) = bytes_start.cdata("at") {
-                        if let Ok(at) = f32::from_str(&at) {
-                            match horizontal {
-                                true => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::PercentX(at))),
-                                false => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::PercentY(at))),
-                            }
-                            return;
-                        }
-                    }
-                    match horizontal {
-                        true => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::FitX)),
-                        false => parser.push(LayoutCommandType::ElementConfig(ConfigCommand::FitY)),
-                    }
-                    return;
-                }
-            }
+    } else {(T::default(), false)}
+}
+
+fn try_parse<'a, T:FromStr>(name: &str, bytes_start: &'a mut BytesStart) -> Option<T> {
+    if let Some(value) = bytes_start.cdata(name) {
+        match T::from_str(&value) {
+            Err(_) => None,
+            Ok(value) => Some(value)
         }
+    } else {None}
+}
+
+fn set_sizing_attributes<'a>(bytes_start: &'a mut BytesStart) -> SsizeType{
+    let (min, min_exists) = parse::<f32>("min", bytes_start);
+    let (max, max_exists) = parse::<f32>("max", bytes_start);
+    let (at, at_exists) = parse::<f32>("at", bytes_start);
+
+    if min_exists && max_exists {
+        return SsizeType::MinMax { min, max }
+    }
+    else if min_exists {
+        return SsizeType::Min { min }
+    }
+    else if at_exists {
+        return SsizeType::At { at };
+    }
+    else {
+        return SsizeType::None;
     }
 }
 
 #[derive(Default)]
-pub struct Parser<UserEvents: FromStr+Clone+PartialEq>{
+pub struct Parser<Event>
+where
+    Event: Clone+Debug+PartialEq+FromStr
+{
     mode: ParsingMode,
 
-    current_page: Vec<LayoutCommandType<UserEvents>>,
+    current_page: Vec<LayoutCommandType<Event>>,
     current_page_name: String,
-    pages: HashMap<String, Vec<LayoutCommandType<UserEvents>>>,
+    pages: HashMap<String, Vec<LayoutCommandType<Event>>>,
 
-    current_reusable: Vec<LayoutCommandType<UserEvents>>,
+    current_reusable: Vec<LayoutCommandType<Event>>,
     reusable_name: String,
-    reusable: HashMap<String, Vec<LayoutCommandType<UserEvents>>>,
+    reusable: HashMap<String, Vec<LayoutCommandType<Event>>>,
 
     nesting_level: i32,
     xml_nesting_stack: Vec<i32>,
@@ -348,13 +326,16 @@ pub struct Parser<UserEvents: FromStr+Clone+PartialEq>{
     text_content: Option<String>
 }
 
-impl<UserEvents: FromStr+Clone+PartialEq> Parser<UserEvents>{
+impl<Event> Parser<Event>
+where
+    Event: Clone+Debug+PartialEq+FromStr
+{
     pub fn add_page(&mut self, xml_string: &str) -> Result<(), ParserError>{
         let mut reader = Reader::from_str(xml_string);
         reader.config_mut().trim_text(true);
         let mut buf = Vec::<u8>::new();
 
-        self.push(LayoutCommandType::TextConfig(TextConfigCommand::DefaultText("hello".to_string())));
+        self.text_config(TextConfigCommand::DefaultText("hello".to_string()));
 
         loop {
             match reader.read_event_into(&mut buf) {
@@ -362,331 +343,356 @@ impl<UserEvents: FromStr+Clone+PartialEq> Parser<UserEvents>{
                     println!("Reader Error: {:?}", e);
                     return Err(ParserError::ReaderError)
                 },
-                Ok(Event::Eof) => break,
-                Ok(Event::Start(e)) => {
+                Ok(XMLEvent::Eof) => break,
+                Ok(XMLEvent::Start(e)) => {
                     self.nest();
                     match e.name().as_ref() {
-                        b"reusable" => {
-                            match e.cdata("name") {
-                                None => return Err(ParserError::UnNamedReusable),
-                                Some(reusable_name) => self.open_reusable(reusable_name),
-                            }
+                        b"reusable" => match e.cdata("name") {
+                            None => return Err(ParserError::UnNamedReusable),
+                            Some(reusable_name) => self.open_reusable(reusable_name),
                         }
-                        b"use" => {
-                            match e.cdata("name") {
-                                None => return Err(ParserError::UnnamedUseTag),
-                                Some(fragment_name) => self.push(LayoutCommandType::FlowControl(FlowControlCommand::UseOpened{name:fragment_name.clone()})),
-                            }
-                        }
-                        b"page" => {
-                            if let Some(_name) = e.cdata("name") {
-                                //page_name = name;
-                            }
+                        b"page" => match e.cdata("name") {
+                            None => return Err(ParserError::UnNamedPage),
+                            Some(name) => self.current_page_name = name
                         }
                         b"element" => {
-                            if let Some(id) = e.cdata("if") {
-                                self.push_nest(ConfigCommand::IfOpened(id));
+                            if let Some(condition) = e.cdata("if") {
+                                self.push_nest(FlowControlCommand::IfOpened{condition});
                             }
-                            self.push(ConfigCommand::ElementOpened(e.cdata("id")));
+                            if let Some(condition) = e.cdata("if-not") {
+                                self.push_nest(FlowControlCommand::IfNotOpened{condition});
+                            }
+                            self.flow_control(FlowControlCommand::ElementOpened{id:e.cdata("id")});
                         }
-                        b"layout" =>    self.push(ConfigCommand::ConfigOpened),
-                        b"text" =>      self.push(ConfigCommand::TextOpened),
-                        b"content" =>   self.start_text_content(),
-                        b"hovered" =>   self.push(ConfigCommand::HoveredOpened),
-                        b"list" => {
-                            if let Some(source) = e.cdata("src") {
-                                self.push(ConfigCommand::ListOpened(source));
-                            }
+                        b"text-element" =>      self.flow_control(FlowControlCommand::TextElementOpened),
+                        b"element-config" =>    self.flow_control(FlowControlCommand::ConfigOpened),
+                        b"text-config" =>       self.flow_control(FlowControlCommand::TextConfigOpened),
+                        b"content" =>           self.text_content = None,
+                        b"use" => match e.cdata("name") {
+                            None => return Err(ParserError::UnnamedUseTag),
+                            Some(fragment_name) => self.flow_control(FlowControlCommand::UseOpened{name:fragment_name.clone()}),
                         }
-                        b"clicked" => {
-                            match e.cdata("emit") {
-                                None => self.push(ConfigCommand::ClickedOpened(None)),
-                                Some(event) => self.push(ConfigCommand::ClickedOpened(
-                                    match CustomEvent::from_str(&event) {
-                                        Err(_) => {
-                                            println!("{:?}", event);
-                                            None
-                                        }
-                                        Ok(event) => Some(event)
-                                    }
-                                )),
-                            }
+                        b"hovered" =>           self.flow_control(FlowControlCommand::HoveredOpened),
+                        b"clicked" =>           self.flow_control(FlowControlCommand::ClickedOpened{event: e.cdata("emit")}),
+                        b"list" => match e.cdata("src") {
+                            None => return Err(ParserError::ListWithoutSource),
+                            Some(src) => self.flow_control(FlowControlCommand::ListOpened { src }),
                         }
                         other => return Err(ParserError::UnknownTag(other.to_owned()))
                     }
                 }
-                Ok(Event::End(e)) => {
+                Ok(XMLEvent::End(e)) => {
                     self.denest();
                     match e.name().as_ref() {
-                        b"fragment" => self.close_fragment(),
-                        b"call" => self.push(ConfigCommand::CallClosed),
+                        b"reusable" =>          self.close_reusable(),
                         b"page" => (),
-                        b"element" => {
-                            self.push(ConfigCommand::ElementClosed);
-                            self.try_pop_nest();
-                        }
-                        b"layout" => self.push(ConfigCommand::ConfigClosed),
-                        b"text" => self.push(ConfigCommand::TextClosed),
-                        b"content" => self.close_text_content(),
-                        b"hovered" => self.push(ConfigCommand::HoveredClosed),
-                        b"clicked" => self.push(ConfigCommand::ClickedClosed),
-                        b"list" => self.push(ConfigCommand::ListClosed),
+                        b"element" =>           self.try_pop_nest(),
+                        b"element-config" =>    self.flow_control(FlowControlCommand::ConfigClosed),
+                        b"text-element" =>      self.flow_control(FlowControlCommand::TextElementClosed),
+                        b"content" =>           self.close_text_content(),
+                        b"use" =>               self.flow_control(FlowControlCommand::UseClosed),
+                        b"hovered" =>           self.flow_control(FlowControlCommand::HoveredClosed),
+                        b"clicked" =>           self.flow_control(FlowControlCommand::ClickedClosed),
+                        b"list" =>              self.flow_control(FlowControlCommand::ListClosed),
                         other => return Err(ParserError::UnknownTag(other.to_owned()))
                     }
                 }
-                Ok(Event::Empty(mut e)) => {
+                Ok(XMLEvent::Empty(mut e)) => {
                     match e.name().as_ref() {
-                        b"id" => {
-                            if let Some(id) = e.cdata("is") {
-                                self.push(ConfigCommand::Id(id));
+                        b"set-bool" => {
+                            let local = match e.cdata("local") {
+                                None => return Err(ParserError::RequiredAttributeValueMissing),
+                                Some(value) => value
+                            };
+                            let to = match e.cdata("to") {
+                                None => return Err(ParserError::RequiredAttributeValueMissing),
+                                Some(value) => match bool::from_str(&value) {
+                                    Err(_) => return Err(ParserError::RequiredAttributeValueMissing),
+                                    Ok(value) => value
+                                }
+                            };
+                            self.page_data(PageDataCommand::SetBool{local, to});
+                        }
+                        b"set-numeric" => {
+                            let local = match e.cdata("local") {
+                                None => return Err(ParserError::RequiredAttributeValueMissing),
+                                Some(value) => value
+                            };
+                            let to = match e.cdata("to") {
+                                None => return Err(ParserError::RequiredAttributeValueMissing),
+                                Some(value) => match f32::from_str(&value) {
+                                    Err(_) => return Err(ParserError::RequiredAttributeValueMissing),
+                                    Ok(value) => value
+                                }
+                            };
+                            self.page_data(PageDataCommand::SetNumeric{local, to});
+                        }
+                        b"set-text" => {
+                            let local = match e.cdata("local") {
+                                None => return Err(ParserError::RequiredAttributeValueMissing),
+                                Some(value) => value
+                            };
+                            let to = match e.cdata("to") {
+                                None => return Err(ParserError::RequiredAttributeValueMissing),
+                                Some(value) => value
+                            };
+                            self.page_data(PageDataCommand::SetText{local, to});
+                        }
+                        b"set-color" => {
+                            let local = match e.cdata("local") {
+                                None => return Err(ParserError::RequiredAttributeValueMissing),
+                                Some(value) => value
+                            };
+                            let to = match e.cdata("to") {
+                                None => return Err(ParserError::RequiredAttributeValueMissing),
+                                Some(value) => match csscolorparser::parse(&value) {
+                                    Err(_) => return Err(ParserError::RequiredAttributeValueMissing),
+                                    Ok(value) => value.to_rgba8().into()
+                                }
+                            };
+                            self.page_data(PageDataCommand::SetColor{local, to});
+                        }
+                        b"set-event" => {
+                            let local = match e.cdata("local") {
+                                None => return Err(ParserError::RequiredAttributeValueMissing),
+                                Some(value) => value
+                            };
+                            let to = match e.cdata("to") {
+                                None => return Err(ParserError::RequiredAttributeValueMissing),
+                                Some(value) => match Event::from_str(&value) {
+                                    Err(_) => return Err(ParserError::RequiredAttributeValueMissing),
+                                    Ok(value) => value
+                                }
+                            };
+                            self.page_data(PageDataCommand::SetEvent{local, to});
+                        }
+                        b"get-bool" => {
+                            let local = match e.cdata("local") {
+                                None => return Err(ParserError::RequiredAttributeValueMissing),
+                                Some(value) => value
+                            };
+                            let from = match e.cdata("from") {
+                                None => return Err(ParserError::RequiredAttributeValueMissing),
+                                Some(value) => value
+                            };
+                            self.page_data(PageDataCommand::GetBool { local, from });
+                        }
+                        b"get-numeric" => {
+                            let local = match e.cdata("local") {
+                                None => return Err(ParserError::RequiredAttributeValueMissing),
+                                Some(value) => value
+                            };
+                            let from = match e.cdata("from") {
+                                None => return Err(ParserError::RequiredAttributeValueMissing),
+                                Some(value) => value
+                            };
+                            self.page_data(PageDataCommand::GetNumeric { local, from });
+                        }
+                        b"get-text" => {
+                            let local = match e.cdata("local") {
+                                None => return Err(ParserError::RequiredAttributeValueMissing),
+                                Some(value) => value
+                            };
+                            let from = match e.cdata("from") {
+                                None => return Err(ParserError::RequiredAttributeValueMissing),
+                                Some(value) => value
+                            };
+                            self.page_data(PageDataCommand::GetText { local, from });
+                        }
+                        b"get-image" => {
+                            let local = match e.cdata("local") {
+                                None => return Err(ParserError::RequiredAttributeValueMissing),
+                                Some(value) => value
+                            };
+                            let from = match e.cdata("from") {
+                                None => return Err(ParserError::RequiredAttributeValueMissing),
+                                Some(value) => value
+                            };
+                            self.page_data(PageDataCommand::GetImage { local, from });
+                        }
+                        b"get-color" => {
+                            let local = match e.cdata("local") {
+                                None => return Err(ParserError::RequiredAttributeValueMissing),
+                                Some(value) => value
+                            };
+                            let from = match e.cdata("from") {
+                                None => return Err(ParserError::RequiredAttributeValueMissing),
+                                Some(value) => value
+                            };
+                            self.page_data(PageDataCommand::GetColor { local, from });
+                        }
+                        b"get-event" => {
+                            let local = match e.cdata("local") {
+                                None => return Err(ParserError::RequiredAttributeValueMissing),
+                                Some(value) => value
+                            };
+                            let from = match e.cdata("from") {
+                                None => return Err(ParserError::RequiredAttributeValueMissing),
+                                Some(value) => value
+                            };
+                            self.page_data(PageDataCommand::GetEvent { local, from });
+                        }
+                        b"id" => match e.cdata("is") {
+                            None => return Err(ParserError::UnSpecifiedIdTag),
+                            Some(id) => self.config_command(ConfigCommand::Id(id)),
+                        }
+                        b"grow" => self.config_command(ConfigCommand::GrowAll),
+                        b"width-fit" => match set_sizing_attributes(&mut e) {
+                            SsizeType::MinMax { min, max } => self.config_command(ConfigCommand::FitXminmax { min, max }),
+                            SsizeType::Min { min } => self.config_command(ConfigCommand::FitXmin { min }),
+                            SsizeType::None => self.config_command(ConfigCommand::FitX),
+                            _ => ()
+                        }
+                        b"width-grow" => match set_sizing_attributes(&mut e) {
+                            SsizeType::MinMax { min, max } => self.config_command(ConfigCommand::GrowXminmax { min, max }),
+                            SsizeType::Min { min } => self.config_command(ConfigCommand::GrowXmin { min }),
+                            SsizeType::None => self.config_command(ConfigCommand::GrowX),
+                            _ => ()
+                        }
+                        b"width-fixed" => if let SsizeType::At { at } = set_sizing_attributes(&mut e) {
+                            self.config_command(ConfigCommand::FixedX(at));
+                        }
+                        b"width-percent" => if let SsizeType::At { at } = set_sizing_attributes(&mut e) {
+                            self.config_command(ConfigCommand::PercentX(at));
+                        }
+                        b"height-fit" => match set_sizing_attributes(&mut e) {
+                            SsizeType::MinMax { min, max } => self.config_command(ConfigCommand::FitYminmax { min, max }),
+                            SsizeType::Min { min } => self.config_command(ConfigCommand::FitYmin { min }),
+                            SsizeType::None => self.config_command(ConfigCommand::FitY),
+                            _ => ()
+                        }
+                        b"height-grow" => match set_sizing_attributes(&mut e) {
+                            SsizeType::MinMax { min, max } => self.config_command(ConfigCommand::GrowYminmax { min, max }),
+                            SsizeType::Min { min } => self.config_command(ConfigCommand::GrowYmin { min }),
+                            SsizeType::None => self.config_command(ConfigCommand::GrowY),
+                            _ => ()
+                        }
+                        b"height-fixed" => if let SsizeType::At { at } = set_sizing_attributes(&mut e) {
+                            self.config_command(ConfigCommand::FixedY(at));
+                        }
+                        b"height-percent" => if let SsizeType::At { at } = set_sizing_attributes(&mut e) {
+                            self.config_command(ConfigCommand::PercentY(at));
+                        }
+                        b"padding-all" => match try_parse::<u16>("is", &mut e) {
+                            None => return Err(ParserError::RequiredAttributeValueMissing),
+                            Some(value) => self.config_command(ConfigCommand::PaddingAll(value)),
+                        }
+                        b"padding-left" => match try_parse::<u16>("is", &mut e) {
+                            None => return Err(ParserError::RequiredAttributeValueMissing),
+                            Some(value) => self.config_command(ConfigCommand::PaddingLeft(value)),
+                        }
+                        b"padding-bottom" => match try_parse::<u16>("is", &mut e) {
+                            None => return Err(ParserError::RequiredAttributeValueMissing),
+                            Some(value) => self.config_command(ConfigCommand::PaddingBottom(value)),
+                        }
+                        b"padding-right" => match try_parse::<u16>("is", &mut e) {
+                            None => return Err(ParserError::RequiredAttributeValueMissing),
+                            Some(value) => self.config_command(ConfigCommand::PaddingRight(value)),
+                        }
+                        b"padding-top" => match try_parse::<u16>("is", &mut e) {
+                            None => return Err(ParserError::RequiredAttributeValueMissing),
+                            Some(value) => self.config_command(ConfigCommand::PaddingTop(value)),
+                        }
+                        b"child-gap" => match try_parse::<u16>("is", &mut e) {
+                            None => return Err(ParserError::RequiredAttributeValueMissing),
+                            Some(value) => self.config_command(ConfigCommand::ChildGap(value)),
+                        }
+                        b"direction" => if let Some(direction) = e.cdata("is") {
+                            if &direction == "ttb" {
+                                self.config_command(ConfigCommand::DirectionTTB);
+                            }
+                            else {
+                                self.config_command(ConfigCommand::DirectionLTR);
                             }
                         }
-                        b"grow" => self.push(ConfigCommand::GrowAll),
-                        b"width" => set_sizing_command(&mut e, &mut self, true),
-                        b"height" => set_sizing_command(&mut e, &mut self, false),
-                        b"padding" => {
-                            if let Some(num) = e.cdata("all") {
-                                if let Ok(num) = u16::from_str(&num) {
-                                    self.push(ConfigCommand::PaddingAll(num));
-                                }
-                            }
-                            if let Some(num) = e.cdata("top") {
-                                if let Ok(num) = u16::from_str(&num) {
-                                    self.push(ConfigCommand::PaddingTop(num));
-                                }
-                            }
-                            if let Some(num) = e.cdata("bottom") {
-                                if let Ok(num) = u16::from_str(&num) {
-                                    self.push(ConfigCommand::PaddingBottom(num));
-                                }
-                            }
-                            if let Some(num) = e.cdata("Left") {
-                                if let Ok(num) = u16::from_str(&num) {
-                                    self.push(ConfigCommand::PaddingLeft(num));
-                                }
-                            }
-                            if let Some(num) = e.cdata("Right") {
-                                if let Ok(num) = u16::from_str(&num) {
-                                    self.push(ConfigCommand::PaddingRight(num));
-                                }
-                            }
-                        }
-                        b"direction" => {
-                            if let Some(direction) = e.cdata("is") {
-                                if &direction == "ttb" {
-                                    self.push(ConfigCommand::DirectionTTB);
-                                }
-                                else {
-                                    self.push(ConfigCommand::DirectionLTR);
-                                }
-                            }
-                        }
-                        b"align-children" => {
-                            if let Some(alignment_x) = e.cdata("x") {
-                                match LayoutData::from_str(&alignment_x) {
-                                    Err(_) => {}
-                                    Ok(layout_data) if layout_data == LayoutData::left => {
-                                        self.push(ConfigCommand::ChildAlignmentXLeft);
-                                    }
-                                    Ok(layout_data) if layout_data == LayoutData::right => {
-                                        self.push(ConfigCommand::ChildAlignmentXRight);
-                                    }
-                                    Ok(layout_data) if layout_data == LayoutData::center => {
-                                        self.push(ConfigCommand::ChildAlignmentXCenter);
-                                    }
-                                    Ok(_) => {}
-                                }
-                            }
-    
-                            if let Some(alignment_y) = e.cdata("y") {
-                                match LayoutData::from_str(&alignment_y) {
-                                    Err(_) => {}
-                                    Ok(layout_data) if layout_data == LayoutData::top => {
-                                        self.push(ConfigCommand::ChildAlignmentYTop);
-                                    }
-                                    Ok(layout_data) if layout_data == LayoutData::bottom => {
-                                        self.push(ConfigCommand::ChildAlignmentYBottom);
-                                    }
-                                    Ok(layout_data) if layout_data == LayoutData::center => {
-                                        self.push(ConfigCommand::ChildAlignmentYCenter);
-                                    }
-                                    Ok(_) => {}
-                                }
-                            }
-                        }
-                        b"child-gap" => {
-                            if let Some(is) = e.cdata("is") {
-                                if let Ok(is) = u16::from_str(&is){
-                                    self.push(ConfigCommand::ChildGap(is));
-                                }
-                            }
-                        }
-                        b"color" => {
-                            let color = if let Some(color) = e.cdata("is") {
-                                if let Ok(color) = csscolorself::parse(&color) {
-                                    let color = color.to_rgba8();
-                                    let color = [color[0] as f32, color[1] as f32, color[2] as f32, color[3] as f32];
-                                    color
-                                }
-                                else { [0.0;4] }
-                            } else { [0.0;4] };
-                            
-                            self.push_color(color);
-                        }
-                        b"dyn-color" => {
-                            let color = if let Some(color) = e.cdata("from") {
-                                if let Some(color) = app.get(&color) {
-                                    if let XMLType::Color(color) = color {
-                                        color
-                                    }
-                                    else { [0.0;4] }
-                                } else { [0.0;4] }
-                            } else { [0.0;4] };
-    
-                            self.push_color(color);
-                        }
-                        b"radius" => {
-                            if let Some(radius) = e.cdata("all") {
-                                if let Ok(radius) = f32::from_str(&radius) {
-                                    self.push(ConfigCommand::RadiusAll(radius));
-                                }
-                            }
-                            if let Some(radius) = e.cdata("top-left") {
-                                if let Ok(radius) = f32::from_str(&radius) {
-                                    self.push(ConfigCommand::RadiusTopLeft(radius));
-                                }
-                            }
-                            if let Some(radius) = e.cdata("top-right") {
-                                if let Ok(radius) = f32::from_str(&radius) {
-                                    self.push(ConfigCommand::RadiusTopRight(radius));
-                                }
-                            }
-                            if let Some(radius) = e.cdata("bottom-left") {
-                                if let Ok(radius) = f32::from_str(&radius) {
-                                    self.push(ConfigCommand::RadiusBottomLeft(radius));
-                                }
-                            }
-                            if let Some(radius) = e.cdata("bottom-left") {
-                                if let Ok(radius) = f32::from_str(&radius) {
-                                    self.push(ConfigCommand::RadiusBottomRight(radius));
-                                }
-                            }
-                        }
-                        b"border" => {
-                            let color = if let Some(color) = e.cdata("color"){
-                                if let Ok(color) = csscolorparser::parse(&color) {
-                                    let color = color.to_rgba8();
-                                    let color = [color[0] as f32, color[1] as f32, color[2] as f32, color[3] as f32];
-                                    Some(color)
-                                }
-                                else {
-                                    None
-                                }
-                            } else {None};
-                            if let Some(num) = e.cdata("all") {
-                                if let Ok(num) = f32::from_str(&num) {
-                                    match color {
-                                        None => self.push(ConfigCommand::BorderAll(num, [0.0;4])),
-                                        Some(color) => self.push(ConfigCommand::BorderAll(num, color)),
-                                    }
-                                }
-                            }
-                            if let Some(num) = e.cdata("top") {
-                                if let Ok(num) = f32::from_str(&num) {
-                                    self.push(ConfigCommand::BorderTop(num, color));
-                                }
-                            }
-                            if let Some(num) = e.cdata("bottom") {
-                                if let Ok(num) = f32::from_str(&num) {
-                                    self.push(ConfigCommand::BorderBottom(num, color));
-                                }
-                            }
-                            if let Some(num) = e.cdata("left") {
-                                if let Ok(num) = f32::from_str(&num) {
-                                    self.push(ConfigCommand::BorderLeft(num, color));
-                                }
-                            }
-                            if let Some(num) = e.cdata("right") {
-                                if let Ok(num) = f32::from_str(&num) {
-                                    self.push(ConfigCommand::BorderRight(num, color));
-                                }
-                            }
-                            if let Some(num) = e.cdata("between-children") {
-                                if let Ok(num) = f32::from_str(&num) {
-                                    self.push(ConfigCommand::BorderRight(num, color));
-                                }
-                            }
-                        }
-                        b"font-id" => {
-                            if let Some(is) = e.cdata("is") {
-                                if let Ok(is) = u16::from_str(&is){
-                                    self.push(ConfigCommand::FontId(is));
-                                }
-                            }
-                        }
-                        b"text-align-left" => self.push(ConfigCommand::TextAlignLeft),
-                        b"text-align-right" => self.push(ConfigCommand::TextAlignRight),
-                        b"text-align-center" => self.push(ConfigCommand::TextAlignCenter),
-                        b"font-size" => {
-                            if let Some(is) = e.cdata("is") {
-                                if let Ok(is) = u16::from_str(&is){
-                                    self.push(ConfigCommand::FontSize(is));
-                                }
-                            }
-                        }
-                        b"line-height" => {
-                            if let Some(is) = e.cdata("is") {
-                                if let Ok(is) = u16::from_str(&is){
-                                    self.push(ConfigCommand::TextLineHeight(is));
-                                }
-                            }
-                        }
-                        b"dyn-content" => {
-                            if let Some(tag) = e.cdata("from") {
-                                self.push(ConfigCommand::DynamicTextContent(tag));
-                            }
-                        }
-                        b"get" => {
-                            if let Some(local) = e.cdata("local") {
-                                if let Some(name) = e.cdata("from") {
-                                    self.push(ConfigCommand::Get(local, name));
-                                }
-                            }
-                        }
-                        b"set" => {
-                            if let Some(local) = e.cdata("local") {
-                                if let Some(value) = e.cdata("bool") {
-                                    if let Ok(value) = bool::from_str(&value) {
-                                        self.push(ConfigCommand::SetBool(local.clone(), value));
+                        b"align-children-x" => if let Some(alignment) = e.cdata("to") {
+                            match AlignmentDirection::from_str(&alignment) {
+                                Err(_) => return Err(ParserError::RequiredAttributeValueMissing),
+                                Ok(direction) => {
+                                    match direction {
+                                        AlignmentDirection::left => self.config_command(ConfigCommand::ChildAlignmentXLeft),
+                                        AlignmentDirection::center => self.config_command(ConfigCommand::ChildAlignmentXCenter),
+                                        AlignmentDirection::right => self.config_command(ConfigCommand::ChildAlignmentXRight),
+                                        _ => {}
                                     }
                                 }
-                                if let Some(value) = e.cdata("numeric") {
-                                    if let Ok(value) = f32::from_str(&value) {
-                                        self.push(ConfigCommand::SetNumeric(local.clone(), value));
+                            }
+                        }
+                        b"align-children-y" => if let Some(alignment) = e.cdata("to") {
+                            match AlignmentDirection::from_str(&alignment) {
+                                Err(_) => return Err(ParserError::RequiredAttributeValueMissing),
+                                Ok(direction) => {
+                                    match direction {
+                                        AlignmentDirection::top => self.config_command(ConfigCommand::ChildAlignmentYTop),
+                                        AlignmentDirection::center => self.config_command(ConfigCommand::ChildAlignmentYCenter),
+                                        AlignmentDirection::bottom => self.config_command(ConfigCommand::ChildAlignmentYBottom),
+                                        _ => {}
                                     }
-                                }
-                                if let Some(value) = e.cdata("text") {
-                                    self.push(ConfigCommand::SetText(local.clone(), value));
-                                }
-                                // if let Some(value) = e.cdata("image") {
-                                //     if let Ok(value) = f32::from_str(&value) {
-                                //         self.push(LayoutCommands::Set(local.clone(), XMLType::Numeric(value)));
-                                //     }
-                                // }
-                                if let Some(value) = e.cdata("color") {
-                                    let color = if let Ok(color) = csscolorparser::parse(&value) {
-                                            let color = color.to_rgba8();
-                                            let color = [color[0] as f32, color[1] as f32, color[2] as f32, color[3] as f32];
-                                            color
-                                    } else { [0.0;4] };
-                                    self.push(ConfigCommand::SetColor(local.clone(), color));
                                 }
                             }
                         }
-                        b"list-member" => {
-                            if let Some(name) = e.cdata("name") {
-                                self.push(ConfigCommand::ListMember(name));
+                        b"color" => if let Some(color) = e.cdata("is") {
+                            match csscolorparser::parse(&color) {
+                                Err(_) => self.config_command(ConfigCommand::Color(Color::default())),
+                                Ok(color) => self.config_command(ConfigCommand::Color(color.to_rgba8().into())),
                             }
+                        }
+                        b"dyn-color" => if let Some(color) = e.cdata("from") {
+                            self.config_command(ConfigCommand::DynamicColor(color));
+                        }
+                        b"radius-all" => match try_parse::<f32>("is", &mut e) {
+                            None => return Err(ParserError::RequiredAttributeValueMissing),
+                            Some(radius) => self.config_command(ConfigCommand::RadiusAll(radius)),
+                        }
+                        b"radius-top-left" => match try_parse::<f32>("is", &mut e) {
+                            None => return Err(ParserError::RequiredAttributeValueMissing),
+                            Some(radius) => self.config_command(ConfigCommand::RadiusTopLeft(radius)),
+                        }
+                        b"radius-top-right" => match try_parse::<f32>("is", &mut e) {
+                            None => return Err(ParserError::RequiredAttributeValueMissing),
+                            Some(radius) => self.config_command(ConfigCommand::RadiusTopLeft(radius)),
+                        }
+                        b"radius-bottom-left" => match try_parse::<f32>("is", &mut e) {
+                            None => return Err(ParserError::RequiredAttributeValueMissing),
+                            Some(radius) => self.config_command(ConfigCommand::RadiusBottomLeft(radius)),
+                        }
+                        b"radius-bottom-right" => match try_parse::<f32>("is", &mut e) {
+                            None => return Err(ParserError::RequiredAttributeValueMissing),
+                            Some(radius) => self.config_command(ConfigCommand::RadiusBottomRight(radius)),
+                        }
+                        b"border-color" => if let Some(color) = e.cdata("is") {
+                            match csscolorparser::parse(&color) {
+                                Err(_) => self.config_command(ConfigCommand::BorderColor(Color::default())),
+                                Ok(color) => self.config_command(ConfigCommand::BorderColor(color.to_rgba8().into())),
+                            }
+                        }
+                        b"border-dynamic-color" => match e.cdata("from") {
+                            None => return Err(ParserError::RequiredAttributeValueMissing),
+                            Some(color) => self.config_command(ConfigCommand::BorderDynamicColor(color)),
+                        }
+                        b"border-all" => match try_parse::<f32>("is", &mut e) {
+                            None => return Err(ParserError::RequiredAttributeValueMissing),
+                            Some(radius) => self.config_command(ConfigCommand::BorderAll(radius)),
+                        }
+                        b"border-top" => match try_parse::<f32>("is", &mut e) {
+                            None => return Err(ParserError::RequiredAttributeValueMissing),
+                            Some(radius) => self.config_command(ConfigCommand::BorderTop(radius)),
+                        }
+                        b"border-left" => match try_parse::<f32>("is", &mut e) {
+                            None => return Err(ParserError::RequiredAttributeValueMissing),
+                            Some(radius) => self.config_command(ConfigCommand::BorderLeft(radius)),
+                        }
+                        b"border-bottom" => match try_parse::<f32>("is", &mut e) {
+                            None => return Err(ParserError::RequiredAttributeValueMissing),
+                            Some(radius) => self.config_command(ConfigCommand::BorderBottom(radius)),
+                        }
+                        b"border-right" => match try_parse::<f32>("is", &mut e) {
+                            None => return Err(ParserError::RequiredAttributeValueMissing),
+                            Some(radius) => self.config_command(ConfigCommand::BorderRight(radius)),
+                        }
+                        b"border-between-children" => match try_parse::<f32>("is", &mut e) {
+                            None => return Err(ParserError::RequiredAttributeValueMissing),
+                            Some(radius) => self.config_command(ConfigCommand::BorderBetweenChildren(radius)),
                         }
                         b"scroll" => {
                             let vertical = match e.cdata("vertical") {
@@ -698,43 +704,82 @@ impl<UserEvents: FromStr+Clone+PartialEq> Parser<UserEvents>{
                                 Some(value) => bool::from_str(&value).unwrap()
                             };
     
-                            self.push(ConfigCommand::Scroll(vertical, horizontal));
+                            self.config_command(ConfigCommand::Scroll(vertical, horizontal));
                         }
-                        
+                        // todo:
+                        // - image
+                        // - custom element
+                        // - floating
+                        // - custom layout
+                        b"font-id" => match try_parse::<u16>("is", &mut e) {
+                            None => return Err(ParserError::RequiredAttributeValueMissing),
+                            Some(id) => self.text_config(TextConfigCommand::FontId(id)),
+                        }
+                        b"text-align-left" => self.text_config(TextConfigCommand::AlignLeft),
+                        b"text-align-right" => self.text_config(TextConfigCommand::AlignRight),
+                        b"text-align-center" => self.text_config(TextConfigCommand::AlignCenter),
+                        b"font-size" => match try_parse::<u16>("is", &mut e) {
+                            None => return Err(ParserError::RequiredAttributeValueMissing),
+                            Some(value) => self.text_config(TextConfigCommand::FontSize(value)),
+                        }
+                        b"line-height" => match try_parse::<u16>("is", &mut e) {
+                            None => return Err(ParserError::RequiredAttributeValueMissing),
+                            Some(value) => self.text_config(TextConfigCommand::LineHeight(value)),
+                        }
+                        b"dyn-content" => match e.cdata("from") {
+                            None => return Err(ParserError::RequiredAttributeValueMissing),
+                            Some(name) => self.text_config(TextConfigCommand::DynamicContent(name)),
+                        }
                         other => return Err(ParserError::UnknownTag(other.to_owned()))
                     }
                 }
-                Ok(Event::Text(e)) => self.receive_text_content(e.unescape().unwrap().to_string()),
+                Ok(XMLEvent::Text(e)) => self.receive_text_content(e.unescape().unwrap().to_string()),
                 _ => ()
             }
         }
         Ok(())
     }
-    fn push(&mut self, tag: LayoutCommandType<UserEvents>){
-        if let LayoutCommandType::FlowControl(command) = &tag {
-            match command {
-                FlowControlCommand::TextConfigOpened(_) => self.text_opened = true,
-                FlowControlCommand::TextConfigClosed => self.text_opened = false,
-                _ => ()
-            }
+    fn flow_control(&mut self, command: FlowControlCommand){
+        match command {
+            FlowControlCommand::TextConfigOpened => self.text_opened = true,
+            FlowControlCommand::TextConfigClosed => self.text_opened = false,
+            _ => ()
         }
         match self.mode {
-            ParsingMode::Reusable => self.current_reusable.push(tag),
-            ParsingMode::Normal => self.current_page.push(tag),
-            _ => todo!()
+            ParsingMode::Reusable => self.current_reusable.push(LayoutCommandType::FlowControl(command)),
+            ParsingMode::Normal => self.current_page.push(LayoutCommandType::FlowControl(command)),
         }
     }
-    fn push_nest(&mut self, tag: LayoutCommandType<UserEvents>){
-        self.push(tag);
+    fn page_data(&mut self, command: PageDataCommand<Event>){
+        match self.mode {
+            ParsingMode::Reusable => self.current_reusable.push(LayoutCommandType::PageData(command)),
+            ParsingMode::Normal => self.current_page.push(LayoutCommandType::PageData(command)),
+        }
+    }
+    fn config_command(&mut self, command: ConfigCommand){
+        match self.mode {
+            ParsingMode::Reusable => self.current_reusable.push(LayoutCommandType::ElementConfig(command)),
+            ParsingMode::Normal => self.current_page.push(LayoutCommandType::ElementConfig(command)),
+        }
+    }
+    fn text_config(&mut self, command: TextConfigCommand){
+        match self.mode {
+            ParsingMode::Reusable => self.current_reusable.push(LayoutCommandType::TextConfig(command)),
+            ParsingMode::Normal => self.current_page.push(LayoutCommandType::TextConfig(command)),
+        }
+    }
+    fn push_nest(&mut self, tag: FlowControlCommand){
+        self.flow_control(tag);
         self.xml_nesting_stack.push(self.nesting_level);
     }
     fn try_pop_nest(&mut self){
+        self.flow_control(FlowControlCommand::ElementClosed);
         match self.xml_nesting_stack.last() {
             None => {}
             Some(saved_nesting_level) => {
                 if self.nesting_level < *saved_nesting_level {
                     self.xml_nesting_stack.pop();
-                    self.push(LayoutCommandType::FlowControl(FlowControlCommand::IfClosed));
+                    self.flow_control(FlowControlCommand::IfClosed);
                 }
             }
         }
@@ -745,9 +790,6 @@ impl<UserEvents: FromStr+Clone+PartialEq> Parser<UserEvents>{
     fn denest(&mut self){
         self.nesting_level -= 1;
     }
-    fn start_text_content(&mut self){
-        self.text_content = None;
-    }
     fn receive_text_content(&mut self, content: String){
         if self.text_opened {
             self.text_content = Some(content);
@@ -755,101 +797,158 @@ impl<UserEvents: FromStr+Clone+PartialEq> Parser<UserEvents>{
     }
     fn close_text_content(&mut self){
         let content = self.text_content.take().unwrap();
-        self.push(LayoutCommandType::TextConfig(TextConfigCommand::Content(content)));
+        self.text_config(TextConfigCommand::Content(content));
     }
     fn open_reusable(&mut self, name: String){
         self.reusable_name = name;
         self.current_reusable.clear();
         self.mode = ParsingMode::Reusable;
     }
-    fn close_fragment(&mut self){
+    fn close_reusable(&mut self){
         let new_fragment = self.current_reusable.clone();
         self.reusable.insert(self.reusable_name.clone(), new_fragment);
         self.mode = ParsingMode::Normal;
     }
 
-    pub fn set_page<'render_pass, ImageElementData: Debug+Default, CustomElementData: Debug+Default, UserApp: Get<ImageElementData, UserEvents>>(
-        page: &str,
-        clicked: bool,
-        events: &mut Vec<UserEvents>,
-        layout_engine: &mut LayoutEngine<ImageElementData, CustomElementData, UserEvents>,
-        user_app: &UserApp
-    ){}
+    // pub fn set_page<'render_pass, ImageElementData: Debug+Default, CustomElementData: Debug+Default, CustomEvent: FromStr+Clone+PartialEq, UserApp: ParserDataAccess<ImageElementData, CustomEvent>>(
+    //     page: &str,
+    //     clicked: bool,
+    //     events: &mut Vec<CustomEvent>,
+    //     layout_engine: &mut LayoutEngine<ImageElementData, CustomElementData, CustomEvent>,
+    //     user_app: &UserApp
+    // ){}
 }
 
-pub fn parse_xml<ImageElementData, CustomEvent: FromStr+Clone+PartialEq+Default+Debug, UserApp: Get<ImageElementData, CustomEvent>>(file: &str, app: &mut UserApp)
-    where <CustomEvent as FromStr>::Err: Debug
-{
-}
-
-fn set_layout<'render_pass, ImageElementData: Debug+Default, CustomElementData: Debug+Default, UserEvents: FromStr+Clone+PartialEq+Debug, UserApp: Get<ImageElementData, UserEvents>>(
-    clicked: bool,
-    events: &mut Vec<UserEvents>,
-    command_stack: &Vec<LayoutCommandType<UserEvents>>,
-    fragments: &HashMap<String, Vec<LayoutCommandType<UserEvents>>>,
-    layout_engine: &mut LayoutEngine<ImageElementData, CustomElementData, UserEvents>,
+fn set_layout<'render_pass, Image, Event, Custom, UserApp: ParserDataAccess<Image, Event>>(
+    events: &mut Vec<Event>,
+    commands: &Vec<LayoutCommandType<Event>>,
+    reusables: &HashMap<String, Vec<LayoutCommandType<Event>>>,
+    locals: Option<&HashMap<String, &PageDataCommand<Event>>>,
+    layout_engine: &mut LayoutEngine<Image, Custom, Event>,
     user_app: &UserApp,
-    locals: Option<&HashMap<String, XMLType<ImageElementData, UserEvents>>>
-){
-    let mut config = None::<ElementConfiguration>;
-    let mut selected_fragment = None::<&Vec<LayoutCommandType<UserEvents>>>;
-    let mut local_call_stack = HashMap::<String, XMLType<ImageElementData, UserEvents>>::new();
-    let mut text_config = None::<TextConfig>;
-    let mut text_content = None::<&String>;
-    let mut dynamic_text_content = None::<&'render_pass str>;
+)
+where 
+    Image: Clone+Debug+Default+PartialEq, 
+    Event: FromStr+Clone+PartialEq+Debug, 
+    Custom: Debug+Default
+{
+    let mut local_call_stack = HashMap::<String, &PageDataCommand<Event>>::new();
     let mut nesting_level = 0;
     let mut skip_level = -1;
 
-    let mut list_stack = Vec::<LayoutCommandType<UserEvents>>::new();
-    let mut list_members = Vec::<LayoutCommandType<UserEvents>>::new();
+    let mut selected_fragment = None::<&Vec<LayoutCommandType<Event>>>;
+
+    let mut list_commands = Vec::<LayoutCommandType<Event>>::new();
+    let mut list_locals = Vec::<PageDataCommand<Event>>::new();
     let mut list_opened = false;
     let mut list_source = String::new();
+    let mut declare = false;
+    
+    let mut config = None::<ElementConfiguration>;
+    
+    let mut text_config = None::<TextConfig>;
+    let mut text_content = None::<&String>;
+    let mut dynamic_text_content = None::<&'render_pass str>;
 
-    for xml_command in command_stack.iter() {
+    for command in commands.iter() {
         if list_opened {
-            match xml_command {
-                ConfigCommand::ListClosed => {
-                    list_opened = false;
-                }
-                ConfigCommand::ListMember(_) => {
-                    list_members.push(xml_command.clone())
+            match command {
+                LayoutCommandType::FlowControl(flow_command) if *flow_command == FlowControlCommand::ListClosed => list_opened = false,
+                LayoutCommandType::PageData(data_command) if declare => {
+                    list_locals.push(data_command.clone());
+                    continue;
                 }
                 other => {
-                    list_stack.push(other.clone());
+                    declare = false;
+                    list_commands.push(other.clone());
                     continue;
                 }
             }
         }
 
+        match command {
+            LayoutCommandType::FlowControl(control_command) => {
+                match control_command {
+                    FlowControlCommand::IfOpened { condition } => {
+                        if skip_level == -1 {
+                            if let Some(value) = user_app.get_bool(&condition) {
+                                if !value {
+                                    skip_level = nesting_level
+                                }
+                            }
+                        }
+        
+                        nesting_level += 1;
+                    }
+                    FlowControlCommand::IfClosed => {
+                        nesting_level -= 1;
+
+                        if skip_level == nesting_level {
+                            skip_level = -1;
+                        }
+                    }
+                    FlowControlCommand::HoveredOpened => {
+                        if skip_level == -1 && !layout_engine.hovered() {
+                            skip_level = nesting_level;
+                        }
+        
+                        nesting_level += 1;
+                    }
+                    FlowControlCommand::HoveredClosed => {
+                        nesting_level -= 1;
+
+                        if skip_level == nesting_level {
+                            skip_level = -1;
+                        }
+                    }
+                    FlowControlCommand::ClickedOpened { event } => {
+
+                        
+
+                        if skip_level == -1 && (!clicked || !layout_engine.hovered()) {
+                            skip_level = nesting_level;
+                        }
+                        // TODO: check for local event substitution:
+                        //
+                        // else {
+                        //     if let Some(event) = event {
+                        //         events.push(event.clone());
+                        //     }
+                        // }
+        
+                        nesting_level += 1;
+                    }
+                    FlowControlCommand::ListOpened { src } => {
+                        list_source = src.to_string();
+                        list_commands.clear();
+                        list_locals.clear();
+                        list_opened = true;
+                        declare = true;
+                    }
+                    FlowControlCommand::ListClosed => {
+                        let list_length = user_app.get_list_length(&list_source);
+                        if let Some(source) = list_length {
+                            for i in 0..source {
+                                local_call_stack.clear();
+                                for member in list_locals.iter() {
+                                    let name = member.get_local();
+                                    local_call_stack.insert(name, member);
+                                }
+                                set_layout(events,  &list_commands, reusables,Some(&local_call_stack), layout_engine, user_app );
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            LayoutCommandType::PageData(data_command) => {}
+            LayoutCommandType::ElementConfig(config_command) => {}
+            LayoutCommandType::TextConfig(config_command) => {}
+        }
+    }
+
+    for xml_command in commands.iter() {
         match xml_command {
-            ConfigCommand::IfOpened(tag) => {
-                if skip_level == -1 && !get_bool(&tag, user_app) {
-                    skip_level = nesting_level;
-                }
-
-                nesting_level += 1;
-            }
-            ConfigCommand::IfClosed => {
-                nesting_level -= 1;
-
-                if skip_level == nesting_level {
-                    skip_level = -1;
-                }
-            }
-            ConfigCommand::HoveredOpened => {
-                if skip_level == -1 && !layout_engine.hovered() {
-                    skip_level = nesting_level;
-                }
-
-                nesting_level += 1;
-            }
-            ConfigCommand::HoveredClosed => {
-                nesting_level -= 1;
-
-                if skip_level == nesting_level {
-                    skip_level = -1;
-                }
-            }
             ConfigCommand::ClickedOpened(event) => {
                 if skip_level == -1 && (!clicked || !layout_engine.hovered()) {
                     skip_level = nesting_level;
@@ -909,7 +1008,7 @@ fn set_layout<'render_pass, ImageElementData: Debug+Default, CustomElementData: 
             }
             
             ConfigCommand::CallOpened(fragment_name)  => {
-                if let Some(fragment) = fragments.get(fragment_name) {
+                if let Some(fragment) = reusables.get(fragment_name) {
                     selected_fragment = Some(fragment);
                     local_call_stack.clear();
                 }
@@ -917,40 +1016,14 @@ fn set_layout<'render_pass, ImageElementData: Debug+Default, CustomElementData: 
             ConfigCommand::CallClosed  => {
                 if selected_fragment.is_some() {
                     if local_call_stack.len() > 0 {
-                        set_layout(clicked, events, selected_fragment.take().unwrap(), fragments, layout_engine, user_app, Some(&local_call_stack));
+                        set_layout(clicked, events, selected_fragment.take().unwrap(), reusables, layout_engine, user_app, Some(&local_call_stack));
                     }
                     else {
-                        set_layout(clicked, events, selected_fragment.take().unwrap(), fragments, layout_engine, user_app, None);
+                        set_layout(clicked, events, selected_fragment.take().unwrap(), reusables, layout_engine, user_app, None);
                     }
                 }
             }
 
-            ConfigCommand::ListOpened(source)  => {
-                list_source = source.to_string();
-                list_stack.clear();
-                list_members.clear();
-                list_opened = true;
-            }
-            ConfigCommand::ListClosed  => {
-                let list_length = user_app.get(&list_source);
-                if let Some(source) = list_length {
-                    if let XMLType::ListLength(length) = source {
-                        for i in 0..length {
-                            local_call_stack.clear();
-                            for member in list_members.iter() {
-                                if let ConfigCommand::ListMember(name) = member {
-                                    let value = user_app.get_list_member(&list_source, i, &name);
-                                    if let Some(value) = value {
-                                        local_call_stack.insert(name.to_string(), value);
-                                    }
-                                }
-                            }
-                            set_layout(clicked, events,  &list_stack, fragments, layout_engine, user_app, Some(&local_call_stack));
-                        }
-                    }
-                }
-            }
-            
             ConfigCommand::Get(local, name)  => {
                 if let Some(value) = user_app.get(name) {
                     local_call_stack.insert(local.to_string(), value);

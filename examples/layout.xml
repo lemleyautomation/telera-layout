@@ -27,7 +27,8 @@
                 <color is="rgb(140,140,140)" />
                 <radius-all is="5" />
                 <hovered>
-                    <border-all is="2" color="black"/>
+                    <border-color is="black" />
+                    <border-all is="2" />
                 </hovered>
             </element-config>
 
@@ -100,7 +101,8 @@
                     <color is="rgb(140,140,140)" />
                     <radius-all is="5" />
                     <hovered>
-                        <border-all is="2" color="black"/>
+                        <border-color is="black" />
+                        <border-all is="2" />
                     </hovered>
                 </element-config>
 
@@ -155,9 +157,9 @@
                 </element-config>
 
                 <list src="documents">
-                    <list-member name="title" />
-                    <list-member name="selected" />
-                    <list-member name="clicked" />
+                    <get-text local="title" from="title" />
+                    <get-bool local="selected" from="selected_document" />
+                    <get-event local="clicked" from="clicked" />
 
                     <element if="selected">
                         <element-config>
@@ -165,7 +167,8 @@
                             <color is="rgb(120,120,120)" />
                             <radius-all is="8"/>
                             <clicked>
-                                <border-all is="2" color="white" />
+                                <border-color is="white" />
+                                <border-all is="2" />
                             </clicked>
                         </element-config>
                         <text-element>
@@ -185,7 +188,8 @@
                             </hovered>
                             <radius-all is="8" />
                             <clicked emit="clicked">
-                                <border-all is="2" color="white" />
+                                <border-color is="white" />
+                                <border-all is="2" />
                             </clicked>
                         </element-config>
                         <text-element>
