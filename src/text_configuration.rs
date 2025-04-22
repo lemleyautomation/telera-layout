@@ -126,25 +126,26 @@ impl From<Clay_TextElementConfig> for TextConfig {
     }
 }
 
-pub unsafe extern "C" fn measure_text_trampoline_user_data<'a, F, T>(
+pub trait MeasureText {
+    fn measure_text(&mut self, text: &str, text_config: TextConfig) -> Vec2;
+}
+
+pub unsafe extern "C" fn measure_text_callback<'a, Renderer>(
     text_slice: Clay_StringSlice,
     config: *mut Clay_TextElementConfig,
     user_data: *mut core::ffi::c_void,
 ) -> Clay_Dimensions
 where
-    F: Fn(&str, &TextConfig, &'a mut T) -> Vec2 + 'a,
-    T: 'a,
+    Renderer: 'a+MeasureText,
 {
     let text = core::str::from_utf8_unchecked(core::slice::from_raw_parts(
         text_slice.chars as *const u8,
         text_slice.length as _,
     ));
 
-    
     let text_config = TextConfig::from(*config);
 
-    let closure_and_data: &mut (F, T) = &mut *(user_data as *mut (F, T));
-    let (callback, data) = closure_and_data;
+    let text_renderer: &mut Renderer = &mut *(user_data as *mut Renderer);
     
-    callback(text, &text_config, data).into()
+    text_renderer.measure_text(text, text_config).into()
 }

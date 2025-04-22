@@ -54,6 +54,7 @@ impl Into<BoundingBox> for Clay_BoundingBox {
     }
 }
 
+#[repr(C)]
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Vec2{
     pub x: f32,

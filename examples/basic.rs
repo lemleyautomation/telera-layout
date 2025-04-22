@@ -1,39 +1,30 @@
 use telera_layout::LayoutEngine;
 use telera_layout::ElementConfiguration;
 use telera_layout::TextConfig;
+use telera_layout::MeasureText;
 use telera_layout::Color;
 use telera_layout::Vec2;
 use telera_layout::RenderCommand;
 
+#[repr(C)]
 #[derive(Debug, Default)]
-struct Custom{
-    a: u8
-}
-
-#[derive(Debug, Default)]
-struct Layout{
+struct LayoutRenderer{
     pub mt: Vec2
 }
 
-impl Layout{
-    pub fn met(&mut self) -> Vec2 {
-        self.mt.clone()
+impl MeasureText for LayoutRenderer {
+    fn measure_text(&mut self, _text: &str, _text_config: TextConfig) -> Vec2 {
+        Vec2 { x: 20.0, y: 12.0 }
     }
 }
 
-fn measure_text(_text: &str, _config: &TextConfig, user_data: &mut Layout) -> Vec2 {
-    user_data.met()
-    //Vec2 { x: 20.0, y: 12.0 }
-}
-
 fn main(){
-    let custom = Custom {a: 0};
-    let mut custom_layout = Layout::default();
+    let mut layout_renderer = LayoutRenderer::default();
 
-    custom_layout.mt = Vec2 {x:20.0, y:12.0};
+    layout_renderer.mt = Vec2 {x:20.0, y:12.0};
 
-    let mut layout = LayoutEngine::<(),Custom,Layout>::new((500.0,500.0));
-    layout.set_text_measurement(&mut custom_layout, measure_text);
+    let mut layout = LayoutEngine::<(),(),()>::new((500.0,500.0));
+    layout.set_text_measurement(&mut layout_renderer);
 
     layout.begin_layout();
 
@@ -61,9 +52,8 @@ fn main(){
         .id("test")
         .x_fixed(50.0)
         .y_fixed(50.0)
-        .custom_layout_settings(&custom_layout)
+        .custom_layout_settings(&layout_renderer)
         .color(Color::default())
-        .custom_element(&custom)
         .end();
     layout.configure_element(&config);
     layout.close_element();

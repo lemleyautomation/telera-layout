@@ -11,6 +11,7 @@ pub use bindings::{
 mod text_configuration;
 use text_configuration::*;
 pub use text_configuration::TextConfig;
+pub use text_configuration::MeasureText;
 
 mod element_configuration;
 pub use element_configuration::ElementConfiguration;
@@ -81,41 +82,28 @@ impl<ImageElementData: Debug + Default, CustomElementData: Debug + Default, Cust
         }
     }
 
-    pub fn set_text_measurement<'application, F, T>(
+    pub fn set_text_measurement<'application, Renderer>(
         &'application mut self,
-        userdata: &'application T,
-        callback: F,
+        text_renderer: &'application Renderer
     ) where
-        F: Fn(&str, &TextConfig, &'application mut T) -> Vec2 + 'static,
-        T: 'application,
+        Renderer: 'application + MeasureText,
     {
         // Box the callback and userdata together
-        let boxed = Box::new((callback, userdata));
+        let boxed = Box::new(text_renderer);
 
         // Get a raw pointer to the boxed data
-        let user_data_ptr = Box::into_raw(boxed) as _;
+        let text_renderer_ptr = Box::into_raw(boxed) as *mut c_void;
 
         // Register the callback with the external C function
         unsafe {
-            Self::set_measure_text_function_unsafe(
-                measure_text_trampoline_user_data::<F, T>,
-                user_data_ptr,
+            Clay_SetMeasureTextFunction(
+                Some(measure_text_callback::<Renderer>), 
+                text_renderer_ptr
             );
         }
 
         // Store the raw pointer for later cleanup
-        self.text_measure_callback = Some(user_data_ptr as *const core::ffi::c_void);
-    }
-
-    unsafe fn set_measure_text_function_unsafe(
-        callback: unsafe extern "C" fn(
-            Clay_StringSlice,
-            *mut Clay_TextElementConfig,
-            *mut core::ffi::c_void,
-        ) -> Clay_Dimensions,
-        user_data: *mut core::ffi::c_void,
-    ) {
-        Clay_SetMeasureTextFunction(Some(callback), user_data);
+        self.text_measure_callback = Some(text_renderer_ptr as *const core::ffi::c_void);
     }
 
     pub fn set_debug_mode(&self, enable: bool) {
