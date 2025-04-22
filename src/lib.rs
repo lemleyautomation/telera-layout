@@ -15,8 +15,8 @@ pub use text_configuration::TextConfig;
 mod element_configuration;
 pub use element_configuration::ElementConfiguration;
 
-mod xml_parse;
-pub use xml_parse::*;
+// mod xml_parse;
+// pub use xml_parse::*;
 
 use std::{
     fmt::Debug, marker::PhantomData, os::raw::c_void
@@ -81,13 +81,13 @@ impl<ImageElementData: Debug + Default, CustomElementData: Debug + Default, Cust
         }
     }
 
-    pub fn set_text_measurement<'clay, F, T>(
-        &'clay mut self,
-        userdata: T,
+    pub fn set_text_measurement<'application, F, T>(
+        &'application mut self,
+        userdata: &'application T,
         callback: F,
     ) where
-        F: Fn(&str, &TextConfig, &'clay mut T) -> Vec2 + 'static,
-        T: 'clay,
+        F: Fn(&str, &TextConfig, &'application mut T) -> Vec2 + 'static,
+        T: 'application,
     {
         // Box the callback and userdata together
         let boxed = Box::new((callback, userdata));

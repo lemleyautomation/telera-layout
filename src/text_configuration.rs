@@ -140,8 +140,11 @@ where
         text_slice.length as _,
     ));
 
-    let closure_and_data: &mut (F, T) = &mut *(user_data as *mut (F, T));
+    
     let text_config = TextConfig::from(*config);
+
+    let closure_and_data: &mut (F, T) = &mut *(user_data as *mut (F, T));
     let (callback, data) = closure_and_data;
+    
     callback(text, &text_config, data).into()
 }

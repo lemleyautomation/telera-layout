@@ -12,19 +12,28 @@ struct Custom{
 
 #[derive(Debug, Default)]
 struct Layout{
-    b: u8
+    pub mt: Vec2
 }
 
-pub fn measure_text(_text: &str, _config: &TextConfig, _user_data: &mut Option<()>) -> Vec2 {
-    Vec2 { x: 20.0, y: 12.0 }
+impl Layout{
+    pub fn met(&mut self) -> Vec2 {
+        self.mt.clone()
+    }
+}
+
+fn measure_text(_text: &str, _config: &TextConfig, user_data: &mut Layout) -> Vec2 {
+    user_data.met()
+    //Vec2 { x: 20.0, y: 12.0 }
 }
 
 fn main(){
     let custom = Custom {a: 0};
-    let custom_layout = Layout {b:0};
+    let mut custom_layout = Layout::default();
+
+    custom_layout.mt = Vec2 {x:20.0, y:12.0};
 
     let mut layout = LayoutEngine::<(),Custom,Layout>::new((500.0,500.0));
-    layout.set_text_measurement(None, measure_text);
+    layout.set_text_measurement(&mut custom_layout, measure_text);
 
     layout.begin_layout();
 
