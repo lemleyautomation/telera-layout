@@ -4,6 +4,7 @@ use std::rc::Rc;
 use telera_layout::LayoutEngine;
 use telera_layout::ElementConfiguration;
 use telera_layout::TextConfig;
+use telera_layout::MeasureText;
 use telera_layout::Color;
 use telera_layout::Vec2;
 use telera_layout::RenderCommand;
@@ -11,22 +12,40 @@ use telera_layout::RenderCommand;
 #[repr(C)]
 #[derive(Debug, Default)]
 struct LayoutRenderer{
-    pub mt: Vec2
+    pub mt: Vec2,
+    s: String
 }
 
-fn measure_text(_text: &str, _text_config: &TextConfig, _user_data: &mut Rc<RefCell<LayoutRenderer>>) -> Vec2 {
+impl MeasureText for LayoutRenderer {
+    fn measure_text(&mut self, text: &str, text_config: TextConfig) -> Vec2 {
+        //println!("{:?}", self.s);
+        Vec2 { x: 20.0, y: 12.0 }    
+    }
+}
+
+impl LayoutRenderer {
+    pub fn new() -> Self {
+        Self { mt: Vec2 { x: 30.0, y: 30.0 }, s: "what's up".to_string() }
+    }
+}
+
+// fn measure_text(_text: &str, _text_config: &TextConfig, _user_data: &mut Rc<RefCell<LayoutRenderer>>) -> Vec2 {
+//     Vec2 { x: 20.0, y: 12.0 }
+// }
+
+fn measure_text(_text: &str, _text_config: &TextConfig, _user_data: &mut Option<bool>) -> Vec2 {
     Vec2 { x: 20.0, y: 12.0 }
 }
 
 fn main(){
-    let layout_renderer = Rc::<RefCell<LayoutRenderer>>::new(RefCell::new(LayoutRenderer::default()));
+    let mut layout_renderer = LayoutRenderer::new();
 
-    layout_renderer.borrow_mut().mt = Vec2 {x:20.0, y:12.0};
+    layout_renderer.mt = Vec2 {x:20.0, y:12.0};
 
-    let mut layout = LayoutEngine::<(),(),()>::new((500.0,500.0));
-    layout.set_text_measurement(layout_renderer.clone(), measure_text);
+    let mut layout = LayoutEngine::<LayoutRenderer, (),(),()>::new((500.0,500.0));
+    //layout.set_text_measurement(None, measure_text);
 
-    layout.begin_layout();
+    layout.begin_layout(layout_renderer);
 
     layout.open_element();
 
@@ -45,7 +64,23 @@ fn main(){
         .font_size(12)
         .line_height(14)
         .end();
-    layout.add_text_element("hi", &text_config, true);
+    layout.add_text_element("hi1", &text_config, true);
+
+    let text_config = TextConfig::new()
+        .font_id(0)
+        .color(Color::default())
+        .font_size(12)
+        .line_height(14)
+        .end();
+    layout.add_text_element("hi2", &text_config, true);
+
+    let text_config = TextConfig::new()
+        .font_id(0)
+        .color(Color::default())
+        .font_size(12)
+        .line_height(14)
+        .end();
+    layout.add_text_element("hi3", &text_config, true);
 
     layout.open_element();
     let config = ElementConfiguration::new()
@@ -59,7 +94,9 @@ fn main(){
 
     layout.close_element();
 
-    let render_commands = layout.end_layout();
+    let (render_commands, mut layout_renderer) = layout.end_layout();
+
+    layout_renderer.mt.x = 4.0;
 
     for command in render_commands {
         match command {

@@ -11,6 +11,7 @@ pub use bindings::{
 mod text_configuration;
 use text_configuration::*;
 pub use text_configuration::TextConfig;
+pub use text_configuration::MeasureText;
 
 mod element_configuration;
 pub use element_configuration::ElementConfiguration;
@@ -19,7 +20,7 @@ pub use element_configuration::ElementConfiguration;
 // pub use xml_parse::*;
 
 use std::{
-    fmt::Debug, marker::PhantomData, os::raw::c_void
+    cell::RefCell, fmt::Debug, marker::PhantomData, os::raw::c_void, rc::Rc
 };
 
 unsafe extern "C" fn error_handler(error_data: Clay_ErrorData) {
@@ -27,16 +28,17 @@ unsafe extern "C" fn error_handler(error_data: Clay_ErrorData) {
 }
 
 
-pub struct LayoutEngine<ImageElementData: Debug, CustomElementData: Debug, CustomLayoutSettings>{
+pub struct LayoutEngine<Renderer: MeasureText, ImageElementData: Debug, CustomElementData: Debug, CustomLayoutSettings>{
     _memory: Vec<u8>,
     context: *mut Clay_Context,
     text_measure_callback: Option<*const core::ffi::c_void>,
     _phantom: PhantomData<(CustomElementData, ImageElementData, CustomLayoutSettings)>,
-    dangling_element_count: u32
+    dangling_element_count: u32,
+    renderer: Option<Rc<RefCell<Renderer>>>
 }
 
 
-impl<ImageElementData: Debug + Default, CustomElementData: Debug + Default, CustomLayoutSettings> LayoutEngine<ImageElementData, CustomElementData, CustomLayoutSettings> {
+impl<TextRenderer: MeasureText, ImageElementData: Debug + Default, CustomElementData: Debug + Default, CustomLayoutSettings> LayoutEngine<TextRenderer, ImageElementData, CustomElementData, CustomLayoutSettings> {
     pub fn new(dimensions: (f32,f32)) -> Self{
         let memory_size = unsafe { Clay_MinMemorySize() as usize };
         let memory = vec![0; memory_size];
@@ -61,7 +63,8 @@ impl<ImageElementData: Debug + Default, CustomElementData: Debug + Default, Cust
             context,
             text_measure_callback: None,
             _phantom: PhantomData{},
-            dangling_element_count: 0
+            dangling_element_count: 0,
+            renderer: None
         }
     }
 
@@ -81,31 +84,30 @@ impl<ImageElementData: Debug + Default, CustomElementData: Debug + Default, Cust
         }
     }
 
-    pub fn set_text_measurement<'clay, F, T>(
-        &'clay mut self,
-        userdata: T,
-        callback: F,
-    ) where
-        F: Fn(&str, &TextConfig, &'clay mut T) -> Vec2 + 'static,
-        T: 'clay,
-    {
-        // Box the callback and userdata together
-        let boxed = Box::new((callback, userdata));
-
+    fn set_measure_text(&mut self, renderer: &Rc<RefCell<TextRenderer>>){
         // Get a raw pointer to the boxed data
-        let user_data_ptr = Box::into_raw(boxed) as _;
+        let user_data_ptr = Rc::into_raw(renderer.clone()) as *mut c_void;
 
         // Register the callback with the external C function
         unsafe {
             Clay_SetMeasureTextFunction(
-                Some(measure_text_trampoline_user_data::<F,T>), 
+                Some(measure_text_c_callback::<TextRenderer>), 
                 user_data_ptr
             );
-            
         }
 
         // Store the raw pointer for later cleanup
         self.text_measure_callback = Some(user_data_ptr as *const core::ffi::c_void);
+    }
+
+    fn unset_measure_text(&mut self){
+        unsafe {
+            Clay_SetMeasureTextFunction(None, std::ptr::null::<c_void>() as _);
+        }
+        let renderer_ptr = self.text_measure_callback.take().unwrap();
+        unsafe {
+            Rc::decrement_strong_count(renderer_ptr);
+        }
     }
 
     pub fn set_debug_mode(&self, enable: bool) {
@@ -120,32 +122,42 @@ impl<ImageElementData: Debug + Default, CustomElementData: Debug + Default, Cust
         }
     }
 
-    pub fn begin_layout(&self){
+    pub fn begin_layout(& mut self, text_renderer: TextRenderer){
+        let renderer = Rc::<RefCell<TextRenderer>>::new(RefCell::new(text_renderer));
+        self.set_measure_text(&renderer);
+        self.renderer = Some(renderer);
+
         unsafe { 
             Clay_BeginLayout();
             Clay_SetCurrentContext(self.context);
         };
     }
 
-    pub fn end_layout<'render_pass>(&mut self) -> Vec<RenderCommand::<'render_pass, ImageElementData, CustomElementData, CustomLayoutSettings>> {
+    pub fn end_layout<'render_pass>(&mut self) -> (Vec<RenderCommand::<'render_pass, ImageElementData, CustomElementData, CustomLayoutSettings>>, TextRenderer) {
         self.check_for_dangling_elements();
 
-        let array = unsafe {Clay_EndLayout()};
+        let array = unsafe {
+            let render_commands = Clay_EndLayout();
+            core::slice::from_raw_parts(render_commands.internalArray, render_commands.length as usize)
+        };
         
-        let array = unsafe { core::slice::from_raw_parts(array.internalArray, array.length as usize) };
+        self.unset_measure_text();
 
-        array.iter().map(|command| {
-            match command.commandType {
-                Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_NONE => RenderCommand::None,
-                Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_RECTANGLE => RenderCommand::Rectangle(command.into()),
-                Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_BORDER => RenderCommand::Border(command.into()),
-                Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_TEXT => RenderCommand::Text(command.into()),
-                Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_IMAGE => RenderCommand::Image(command.into()),
-                Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_CUSTOM => RenderCommand::Custom(command.into()),
-                Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_SCISSOR_START => RenderCommand::ScissorStart(command.into()),
-                Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_SCISSOR_END => RenderCommand::ScissorEnd
-            }
-        }).collect::<Vec<RenderCommand::<ImageElementData, CustomElementData, CustomLayoutSettings>>>()
+        (
+            array.iter().map(|command| {
+                match command.commandType {
+                    Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_NONE => RenderCommand::None,
+                    Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_RECTANGLE => RenderCommand::Rectangle(command.into()),
+                    Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_BORDER => RenderCommand::Border(command.into()),
+                    Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_TEXT => RenderCommand::Text(command.into()),
+                    Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_IMAGE => RenderCommand::Image(command.into()),
+                    Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_CUSTOM => RenderCommand::Custom(command.into()),
+                    Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_SCISSOR_START => RenderCommand::ScissorStart(command.into()),
+                    Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_SCISSOR_END => RenderCommand::ScissorEnd
+                }
+            }).collect::<Vec<RenderCommand::<ImageElementData, CustomElementData, CustomLayoutSettings>>>(),
+            RefCell::into_inner(Rc::into_inner(self.renderer.take().unwrap()).unwrap())
+        )
     }
 
     pub fn open_element(&mut self){
@@ -221,15 +233,11 @@ impl<ImageElementData: Debug + Default, CustomElementData: Debug + Default, Cust
         unsafe { Clay_Hovered() }
     }
 
-    unsafe extern "C" fn call_back_handler(id: Clay_ElementId, pointer_data: Clay_PointerData, user_data: isize){
-
-    }
-
-    pub fn on_click<callback: Fn()>(&mut self, callback_function: callback){
-        unsafe {
-            Clay_OnHover(Some(LayoutEngine::<(),(),()>::call_back_handler), 0);
-        }
-    }
+    // pub fn on_click<callback: Fn()>(&mut self, callback_function: callback){
+    //     unsafe {
+    //         Clay_OnHover(Some(LayoutEngine::<(),(),()>::call_back_handler), 0);
+    //     }
+    // }
 
     pub fn pointer_over(&self, cfg: Clay_ElementId) -> bool {
         unsafe { Clay_PointerOver(cfg) }
