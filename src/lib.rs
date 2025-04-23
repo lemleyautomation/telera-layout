@@ -11,7 +11,6 @@ pub use bindings::{
 mod text_configuration;
 use text_configuration::*;
 pub use text_configuration::TextConfig;
-pub use text_configuration::MeasureText;
 
 mod element_configuration;
 pub use element_configuration::ElementConfiguration;
@@ -82,28 +81,31 @@ impl<ImageElementData: Debug + Default, CustomElementData: Debug + Default, Cust
         }
     }
 
-    pub fn set_text_measurement<'application, Renderer>(
-        &'application mut self,
-        text_renderer: &'application Renderer
+    pub fn set_text_measurement<'clay, F, T>(
+        &'clay mut self,
+        userdata: T,
+        callback: F,
     ) where
-        Renderer: 'application + MeasureText,
+        F: Fn(&str, &TextConfig, &'clay mut T) -> Vec2 + 'static,
+        T: 'clay,
     {
         // Box the callback and userdata together
-        let boxed = Box::new(text_renderer);
+        let boxed = Box::new((callback, userdata));
 
         // Get a raw pointer to the boxed data
-        let text_renderer_ptr = Box::into_raw(boxed) as *mut c_void;
+        let user_data_ptr = Box::into_raw(boxed) as _;
 
         // Register the callback with the external C function
         unsafe {
             Clay_SetMeasureTextFunction(
-                Some(measure_text_callback::<Renderer>), 
-                text_renderer_ptr
+                Some(measure_text_trampoline_user_data::<F,T>), 
+                user_data_ptr
             );
+            
         }
 
         // Store the raw pointer for later cleanup
-        self.text_measure_callback = Some(text_renderer_ptr as *const core::ffi::c_void);
+        self.text_measure_callback = Some(user_data_ptr as *const core::ffi::c_void);
     }
 
     pub fn set_debug_mode(&self, enable: bool) {
@@ -140,7 +142,7 @@ impl<ImageElementData: Debug + Default, CustomElementData: Debug + Default, Cust
                 Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_TEXT => RenderCommand::Text(command.into()),
                 Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_IMAGE => RenderCommand::Image(command.into()),
                 Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_CUSTOM => RenderCommand::Custom(command.into()),
-                Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_SCISSOR_START => RenderCommand::ScissorStart,
+                Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_SCISSOR_START => RenderCommand::ScissorStart(command.into()),
                 Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_SCISSOR_END => RenderCommand::ScissorEnd
             }
         }).collect::<Vec<RenderCommand::<ImageElementData, CustomElementData, CustomLayoutSettings>>>()

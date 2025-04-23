@@ -282,6 +282,12 @@ impl<'render_pass, CustomLayoutSettings> From<&Clay_RenderCommand> for Text<'ren
     }
 }
 
+impl<'render_pass> From<&Clay_RenderCommand> for BoundingBox {
+    fn from(value: &Clay_RenderCommand) -> Self {
+        value.boundingBox.clone().into()
+    }
+}
+
 impl<'render_pass, ImageElementData, CustomLayoutSettings> From<&Clay_RenderCommand> for Image<'render_pass, ImageElementData, CustomLayoutSettings>{
     fn from(value: &Clay_RenderCommand) -> Self {
         Image { 
@@ -316,7 +322,7 @@ pub enum RenderCommand<'render_pass, ImageElementData, CustomElementData, Custom
     Rectangle(Rectangle<'render_pass, CustomLayoutSettings>),
     Border(Border<'render_pass, CustomLayoutSettings>),
     Text(Text<'render_pass, CustomLayoutSettings>),
-    ScissorStart,
+    ScissorStart(BoundingBox),
     ScissorEnd,
     Image(Image<'render_pass, ImageElementData, CustomLayoutSettings>),
     Custom(Custom<'render_pass, CustomElementData, CustomLayoutSettings>),
