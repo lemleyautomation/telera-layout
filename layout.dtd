@@ -23,6 +23,10 @@
     border-color|border-all|border-top|border-bottom|
     border-left|border-right|border-between-children|
     scroll|
+    floating|floating-offset|floating-size|
+    floating-z-index|floating-attach-to-parent|
+    floating-attach-element|floating-capture-pointer|
+    floating-attach-to-element|floating-attach-to-root|
     image
     )*>
 <!ATTLIST element-config use ID #IMPLIED>
@@ -53,6 +57,10 @@
     border-color|border-all|border-top|border-bottom|
     border-left|border-right|border-between-children|
     scroll|
+    floating|floating-offset|floating-size|
+    floating-z-index|floating-attach-to-parent|
+    floating-attach-element|floating-capture-pointer|
+    floating-attach-to-element|floating-attach-to-root|
     image
     )*>
 <!ATTLIST hovered emit CDATA #IMPLIED>
@@ -73,6 +81,10 @@
     border-color|border-all|border-top|border-bottom|
     border-left|border-right|border-between-children|
     scroll|
+    floating|floating-offset|floating-size|
+    floating-z-index|floating-attach-to-parent|
+    floating-attach-element|floating-capture-pointer|
+    floating-attach-to-element|floating-attach-to-root|
     image
     )*>
 <!ATTLIST clicked emit CDATA #IMPLIED>
@@ -259,8 +271,8 @@
 <!ELEMENT floating-z-index EMPTY>
 <!ATTLIST floating-z-index z CDATA #REQUIRED>
 
-<!ELEMENT floating-attatch-to-parent EMPTY>
-<!ATTLIST floating-attatch at (
+<!ELEMENT floating-attach-to-parent EMPTY>
+<!ATTLIST floating-attach at (
     top_left|center-left|bottom-left|
     top-center|center|bottom-center|
     top-right|center-right|bottom-right
