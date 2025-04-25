@@ -8,7 +8,7 @@ use quick_xml::events::BytesStart;
 use quick_xml::Decoder;
 use strum_macros::{Display, EnumString};
 
-use crate::{Color, ElementConfiguration, LayoutEngine, TextConfig};
+use crate::{Color, ElementConfiguration, LayoutEngine, MeasureText, TextConfig};
 
 #[derive(Debug, Display)]
 pub enum ParserError{
@@ -20,7 +20,7 @@ pub enum ParserError{
     UnnamedUseTag,
     FileNotAccessable,
     ReaderError,
-    UnknownTag(Vec<u8>),
+    UnknownTag(String),
 }
 
 #[derive(Clone, Debug, Display, PartialEq)]
@@ -50,11 +50,11 @@ pub enum FlowControlCommand{
     
     ListOpened{src: String},
     ListClosed,
-    ListMember{name: String},
 
     UseOpened{name: String},
     UseClosed,
 
+    // if not
     IfOpened{condition: String},
     IfNotOpened{condition: String},
     IfClosed,
@@ -163,14 +163,19 @@ pub enum ConfigCommand{
     BorderRight(f32),
     BorderBetweenChildren(f32),
 
-    Scroll(bool, bool),
+    Scroll{vertical: bool, horizontal: bool},
 
-    Image(String, f32, f32),
+    Image{name: String, width: f32, height: f32},
 
     // todo:
     // floating elements
     // custom elements
     // custom layouts
+}
+
+pub struct ListData<'list_iteration>{
+    pub src: &'list_iteration str,
+    pub index: i32,
 }
 
 #[derive(Clone, Debug, Display, PartialEq)]
@@ -187,7 +192,7 @@ pub enum TextConfigCommand{
     Color(Color),
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 enum ParsingMode{
     #[default]
     Normal,
@@ -237,25 +242,25 @@ impl Cdata for BytesStart<'_>{
 
 #[allow(unused_variables)]
 pub trait ParserDataAccess<Image, Event: FromStr+Clone+PartialEq>{
-    fn get_bool(&self, name: &str) -> Option<bool>{
+    fn get_bool(&self, name: &str, list: &Option<ListData>) -> Option<bool>{
         None
     }
-    fn get_numeric(&self, name: &str) -> Option<f32>{
+    fn get_numeric(&self, name: &str, list: &Option<ListData>) -> Option<f32>{
         None
     }
-    fn get_list_length(&self, name: &str) -> Option<i32>{
+    fn get_list_length(&self, name: &str, list: &Option<ListData>) -> Option<i32>{
         None
     }
-    fn get_text<'render_pass, 'application>(&'application self, name: &str) -> Option<&'render_pass str> where 'application: 'render_pass{
+    fn get_text<'render_pass, 'application>(&'application self, name: &str, list: &Option<ListData>) -> Option<&'render_pass str> where 'application: 'render_pass{
         None
     }
-    fn get_image<'render_pass, 'application>(&'application self, name: &str ) -> Option<&'render_pass Image> where 'application: 'render_pass{
+    fn get_image<'render_pass, 'application>(&'application self, name: &str, list: &Option<ListData> ) -> Option<&'render_pass Image> where 'application: 'render_pass{
         None
     }
-    fn get_color<'render_pass, 'application>(&'application self, name: &str ) -> Option<&'render_pass Color> where 'application: 'render_pass{
+    fn get_color<'render_pass, 'application>(&'application self, name: &str, list: &Option<ListData> ) -> Option<&'render_pass Color> where 'application: 'render_pass{
         None
     }
-    fn get_event<'render_pass, 'application>(&'application self, name: &str ) -> Option<&'render_pass Event> where 'application: 'render_pass{
+    fn get_event<'render_pass, 'application>(&'application self, name: &str, list: &Option<ListData> ) -> Option<Event> where 'application: 'render_pass{
         None
     }
 }
@@ -304,38 +309,58 @@ fn set_sizing_attributes<'a>(bytes_start: &'a mut BytesStart) -> SsizeType{
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Parser<Event>
 where
     Event: Clone+Debug+PartialEq+FromStr
 {
+    pages: HashMap<String, Vec<LayoutCommandType<Event>>>,
+    reusable: HashMap<String, Vec<LayoutCommandType<Event>>>,
+
     mode: ParsingMode,
 
     current_page: Vec<LayoutCommandType<Event>>,
     current_page_name: String,
-    pages: HashMap<String, Vec<LayoutCommandType<Event>>>,
 
     current_reusable: Vec<LayoutCommandType<Event>>,
     reusable_name: String,
-    reusable: HashMap<String, Vec<LayoutCommandType<Event>>>,
 
     nesting_level: i32,
     xml_nesting_stack: Vec<i32>,
 
     text_opened: bool,
-    text_content: Option<String>
+    text_content: Option<String>,
 }
 
 impl<Event> Parser<Event>
 where
-    Event: Clone+Debug+PartialEq+FromStr
+    Event: Clone+Debug+PartialEq+FromStr,
+    <Event as FromStr>::Err: Debug,
 {
+    pub fn update_page(&mut self, xml_string: &str){
+        let pages_copy = self.pages.clone();
+        let reusables_compy = self.reusable.clone();
+        self.pages.clear();
+        self.reusable.clear();
+
+        match self.add_page(xml_string) {
+            Ok(()) => {},
+            Err(_) => {
+                println!("! <------------------invalid layout file------------------/>");
+                self.pages.clear();
+                self.reusable.clear();
+                self.pages = pages_copy;
+                self.reusable = reusables_compy;
+            }
+        }
+    }
+
     pub fn add_page(&mut self, xml_string: &str) -> Result<(), ParserError>{
         let mut reader = Reader::from_str(xml_string);
         reader.config_mut().trim_text(true);
         let mut buf = Vec::<u8>::new();
 
-        self.text_config(TextConfigCommand::DefaultText("hello".to_string()));
+        let mut text_opened = false;
 
         loop {
             match reader.read_event_into(&mut buf) {
@@ -364,7 +389,10 @@ where
                             }
                             self.flow_control(FlowControlCommand::ElementOpened{id:e.cdata("id")});
                         }
-                        b"text-element" =>      self.flow_control(FlowControlCommand::TextElementOpened),
+                        b"text-element" =>      {
+                            self.flow_control(FlowControlCommand::TextElementOpened);
+                            text_opened = true;
+                        }
                         b"element-config" =>    self.flow_control(FlowControlCommand::ConfigOpened),
                         b"text-config" =>       self.flow_control(FlowControlCommand::TextConfigOpened),
                         b"content" =>           self.text_content = None,
@@ -378,7 +406,7 @@ where
                             None => return Err(ParserError::ListWithoutSource),
                             Some(src) => self.flow_control(FlowControlCommand::ListOpened { src }),
                         }
-                        other => return Err(ParserError::UnknownTag(other.to_owned()))
+                        other => return Err(ParserError::UnknownTag(unsafe{String::from_raw_parts(other.to_owned().as_mut_ptr(), other.len(), other.len()*2)}))
                     }
                 }
                 Ok(XMLEvent::End(e)) => {
@@ -388,13 +416,17 @@ where
                         b"page" => (),
                         b"element" =>           self.try_pop_nest(),
                         b"element-config" =>    self.flow_control(FlowControlCommand::ConfigClosed),
-                        b"text-element" =>      self.flow_control(FlowControlCommand::TextElementClosed),
+                        b"text-config" =>       self.flow_control(FlowControlCommand::TextConfigClosed),
+                        b"text-element" =>      {
+                            self.flow_control(FlowControlCommand::TextElementClosed);
+                            text_opened = false;
+                        }
                         b"content" =>           self.close_text_content(),
                         b"use" =>               self.flow_control(FlowControlCommand::UseClosed),
                         b"hovered" =>           self.flow_control(FlowControlCommand::HoveredClosed),
                         b"clicked" =>           self.flow_control(FlowControlCommand::ClickedClosed),
                         b"list" =>              self.flow_control(FlowControlCommand::ListClosed),
-                        other => return Err(ParserError::UnknownTag(other.to_owned()))
+                        other => return Err(ParserError::UnknownTag(unsafe{String::from_raw_parts(other.to_owned().as_mut_ptr(), other.len(), other.len()*2)}))
                     }
                 }
                 Ok(XMLEvent::Empty(mut e)) => {
@@ -632,9 +664,17 @@ where
                             }
                         }
                         b"color" => if let Some(color) = e.cdata("is") {
-                            match csscolorparser::parse(&color) {
-                                Err(_) => self.config_command(ConfigCommand::Color(Color::default())),
-                                Ok(color) => self.config_command(ConfigCommand::Color(color.to_rgba8().into())),
+                            if text_opened {
+                                match csscolorparser::parse(&color) {
+                                    Err(_) => self.text_config(TextConfigCommand::Color(Color::default())),
+                                    Ok(color) => self.text_config(TextConfigCommand::Color(color.to_rgba8().into())),
+                                }
+                            }
+                            else {
+                                match csscolorparser::parse(&color) {
+                                    Err(_) => self.config_command(ConfigCommand::Color(Color::default())),
+                                    Ok(color) => self.config_command(ConfigCommand::Color(color.to_rgba8().into())),
+                                }
                             }
                         }
                         b"dyn-color" => if let Some(color) = e.cdata("from") {
@@ -704,7 +744,7 @@ where
                                 Some(value) => bool::from_str(&value).unwrap()
                             };
     
-                            self.config_command(ConfigCommand::Scroll(vertical, horizontal));
+                            self.config_command(ConfigCommand::Scroll{vertical, horizontal});
                         }
                         // todo:
                         // - image
@@ -730,13 +770,18 @@ where
                             None => return Err(ParserError::RequiredAttributeValueMissing),
                             Some(name) => self.text_config(TextConfigCommand::DynamicContent(name)),
                         }
-                        other => return Err(ParserError::UnknownTag(other.to_owned()))
+                        other => return Err(ParserError::UnknownTag(unsafe{String::from_raw_parts(other.to_owned().as_mut_ptr(), other.len(), other.len()*2)}))
                     }
                 }
-                Ok(XMLEvent::Text(e)) => self.receive_text_content(e.unescape().unwrap().to_string()),
+                Ok(XMLEvent::Text(e)) => {
+                    self.receive_text_content(e.unescape().unwrap().to_string())
+                },
                 _ => ()
             }
         }
+        self.pages.insert(self.current_page_name.clone(), self.current_page.clone());
+        self.current_page.clear();
+        self.current_page_name = "".to_string();
         Ok(())
     }
     fn flow_control(&mut self, command: FlowControlCommand){
@@ -791,9 +836,7 @@ where
         self.nesting_level -= 1;
     }
     fn receive_text_content(&mut self, content: String){
-        if self.text_opened {
-            self.text_content = Some(content);
-        }
+        self.text_content = Some(content);
     }
     fn close_text_content(&mut self){
         let content = self.text_content.take().unwrap();
@@ -810,57 +853,97 @@ where
         self.mode = ParsingMode::Normal;
     }
 
-    // pub fn set_page<'render_pass, ImageElementData: Debug+Default, CustomElementData: Debug+Default, CustomEvent: FromStr+Clone+PartialEq, UserApp: ParserDataAccess<ImageElementData, CustomEvent>>(
-    //     page: &str,
-    //     clicked: bool,
-    //     events: &mut Vec<CustomEvent>,
-    //     layout_engine: &mut LayoutEngine<ImageElementData, CustomElementData, CustomEvent>,
-    //     user_app: &UserApp
-    // ){}
+    pub fn set_page<'render_pass, Renderer, Image, Custom, CustomLayout, UserApp>(
+        &mut self,
+        page: &str,
+        clicked: bool,
+        layout_engine: &mut LayoutEngine<Renderer, Image, Custom, CustomLayout>,
+        user_app: &UserApp
+    ) -> Vec<Event>
+    where 
+        Renderer: MeasureText,
+        Image: Clone+Debug+Default+PartialEq, 
+        Event: FromStr+Clone+PartialEq+Debug, 
+        Custom: Debug+Default,
+        UserApp: ParserDataAccess<Image, Event>
+    {
+        let mut events = Vec::<Event>::new();
+        if let Some(page_commands) = self.pages.get(page) {
+            let mut command_references = Vec::<&LayoutCommandType<Event>>::new();
+            for command in page_commands.iter() {
+                command_references.push(command);
+            }
+            set_layout(clicked, &mut events, &command_references, &self.reusable, None, None, &mut None, &mut None, layout_engine, user_app);
+        }
+        events
+    }
 }
 
-fn set_layout<'render_pass, Image, Event, Custom, UserApp: ParserDataAccess<Image, Event>>(
+fn set_layout<'render_pass, Renderer: MeasureText, Image, Event, Custom, CustomLayout, UserApp>(
+    clicked: bool,
     events: &mut Vec<Event>,
-    commands: &Vec<LayoutCommandType<Event>>,
+    commands: &Vec<&LayoutCommandType<Event>>,
     reusables: &HashMap<String, Vec<LayoutCommandType<Event>>>,
     locals: Option<&HashMap<String, &PageDataCommand<Event>>>,
-    layout_engine: &mut LayoutEngine<Image, Custom, Event>,
+    list_data: Option<ListData>,
+    append_config: &mut Option<ElementConfiguration>,
+    append_text_config: &mut Option<TextConfig>,
+    layout_engine: &mut LayoutEngine<Renderer, Image, Custom, CustomLayout>,
     user_app: &UserApp,
 )
 where 
     Image: Clone+Debug+Default+PartialEq, 
-    Event: FromStr+Clone+PartialEq+Debug, 
-    Custom: Debug+Default
+    Event: FromStr+Clone+PartialEq+Debug,
+    <Event as FromStr>::Err: Debug,
+    Custom: Debug+Default,
+    UserApp: ParserDataAccess<Image, Event>
 {
-    let mut local_call_stack = HashMap::<String, &PageDataCommand<Event>>::new();
-    let mut nesting_level = 0;
-    let mut skip_level = -1;
+    #[cfg(feature="parse_logger")]
+    if let Some(list_data) = &list_data {
+        println!("list src:{:?}, list index:{:?}", &list_data.src, &list_data.index);
+        if let Some(locals) = locals {
+            for key in locals.keys() {
+                println!("{:}", key);
+            }
+        }
+    }
 
-    let mut selected_fragment = None::<&Vec<LayoutCommandType<Event>>>;
+    let mut nesting_level: u32 = 0;
+    let mut skip: Option<u32> = None;
 
-    let mut list_commands = Vec::<LayoutCommandType<Event>>::new();
-    let mut list_locals = Vec::<PageDataCommand<Event>>::new();
-    let mut list_opened = false;
-    let mut list_source = String::new();
-    let mut declare = false;
+    let mut recursive_commands = Vec::<&LayoutCommandType<Event>>::new();
+    let mut recursive_source = String::new();
+    let mut recursive_call_stack = HashMap::<String, &PageDataCommand<Event>>::new();
+    let mut collect_recursive_declarations = false;
+
+    let mut collect_list_commands = false;
     
+    // let mut config = match append_config.is_some() {
+    //     false => None::<ElementConfiguration>,
+    //     true => *append_config
+    // };
     let mut config = None::<ElementConfiguration>;
     
-    let mut text_config = None::<TextConfig>;
+    let mut text_config = match append_text_config.is_some() {
+        false => None::<TextConfig>,
+        true => *append_text_config
+    };
+
     let mut text_content = None::<&String>;
     let mut dynamic_text_content = None::<&'render_pass str>;
 
+    let mut index = 0;
     for command in commands.iter() {
-        if list_opened {
+        index += 1;
+        #[cfg(feature="parse_logger")]
+        println!("skip active: {:?}, {:?}", &skip, command);
+        if collect_list_commands {
             match command {
-                LayoutCommandType::FlowControl(flow_command) if *flow_command == FlowControlCommand::ListClosed => list_opened = false,
-                LayoutCommandType::PageData(data_command) if declare => {
-                    list_locals.push(data_command.clone());
-                    continue;
-                }
+                LayoutCommandType::FlowControl(flow_command) if *flow_command == FlowControlCommand::ListClosed => collect_list_commands = false,
+                LayoutCommandType::PageData(_) => {}
                 other => {
-                    declare = false;
-                    list_commands.push(other.clone());
+                    collect_recursive_declarations = false;
+                    recursive_commands.push(other);
                     continue;
                 }
             }
@@ -870,26 +953,92 @@ where
             LayoutCommandType::FlowControl(control_command) => {
                 match control_command {
                     FlowControlCommand::IfOpened { condition } => {
-                        if skip_level == -1 {
-                            if let Some(value) = user_app.get_bool(&condition) {
-                                if !value {
-                                    skip_level = nesting_level
+                        if skip.is_none() {
+                            match locals {
+                                None => if let Some(value) = user_app.get_bool(&condition, &None) {
+                                    if !value {
+                                        skip = Some(nesting_level)
+                                    }
+                                }
+                                Some(locals) =>  match locals.get(condition) {
+                                    None => if let Some(value) = user_app.get_bool(&condition, &None) {
+                                        if !value {
+                                            skip = Some(nesting_level)
+                                        }
+                                    }
+                                    Some(data_command) => {
+                                        match data_command {
+                                            PageDataCommand::GetBool { local:_, from } =>  if let Some(value) = user_app.get_bool (from, &list_data) {
+                                                if !value {
+                                                    skip = Some(nesting_level)
+                                                }
+                                            }
+                                            PageDataCommand::SetBool { local:_, to } => if !to {
+                                                skip = Some(nesting_level)
+                                            }
+                                            _ => {}
+                                        }
+                                    }
                                 }
                             }
                         }
-        
+                        nesting_level += 1;
+                    }
+                    FlowControlCommand::IfNotOpened { condition } => {
+                        if skip.is_none() {
+                            match locals {
+                                None => if let Some(value) = user_app.get_bool(&condition, &None) {
+                                    if value {
+                                        skip = Some(nesting_level)
+                                    }
+                                }
+                                Some(locals) =>  {
+                                    match locals.get(condition) {
+                                        None => if let Some(value) = user_app.get_bool(&condition, &None) {
+                                            if value {
+                                                skip = Some(nesting_level)
+                                            }
+                                        }
+                                        Some(data_command) => {
+                                            match data_command {
+                                                PageDataCommand::GetBool { local:_, from } =>  {
+                                                    if let Some(value) = user_app.get_bool (from, &list_data) {
+                                                        #[cfg(feature="parse_logger")]
+                                                        println!("if not {:?} @index({:?}) = {:?}", from, &list_data.as_ref().unwrap().index, value);
+                                                        if value {
+                                                            skip = Some(nesting_level)
+                                                        }
+                                                    }
+                                                    else {
+                                                        
+                                                    }
+                                                }
+                                                PageDataCommand::SetBool { local:_, to } => if *to {
+                                                    skip = Some(nesting_level)
+                                                }
+                                                _ => {}
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         nesting_level += 1;
                     }
                     FlowControlCommand::IfClosed => {
                         nesting_level -= 1;
 
-                        if skip_level == nesting_level {
-                            skip_level = -1;
+                        if let Some(skip_level) = skip {
+                            #[cfg(feature="parse_logger")]
+                            println!("trying to close skip: {:?}, {:?}", skip_level, nesting_level);
+                            if skip_level <= nesting_level{
+                                skip = None;
+                            }
                         }
                     }
                     FlowControlCommand::HoveredOpened => {
-                        if skip_level == -1 && !layout_engine.hovered() {
-                            skip_level = nesting_level;
+                        if skip.is_none() && !layout_engine.hovered() {
+                            skip = Some(nesting_level);
                         }
         
                         nesting_level += 1;
@@ -897,166 +1046,217 @@ where
                     FlowControlCommand::HoveredClosed => {
                         nesting_level -= 1;
 
-                        if skip_level == nesting_level {
-                            skip_level = -1;
-                        }
-                    }
-                    FlowControlCommand::ClickedOpened { event } => {
-
-                        
-
-                        if skip_level == -1 && (!clicked || !layout_engine.hovered()) {
-                            skip_level = nesting_level;
-                        }
-                        // TODO: check for local event substitution:
-                        //
-                        // else {
-                        //     if let Some(event) = event {
-                        //         events.push(event.clone());
-                        //     }
-                        // }
-        
-                        nesting_level += 1;
-                    }
-                    FlowControlCommand::ListOpened { src } => {
-                        list_source = src.to_string();
-                        list_commands.clear();
-                        list_locals.clear();
-                        list_opened = true;
-                        declare = true;
-                    }
-                    FlowControlCommand::ListClosed => {
-                        let list_length = user_app.get_list_length(&list_source);
-                        if let Some(source) = list_length {
-                            for i in 0..source {
-                                local_call_stack.clear();
-                                for member in list_locals.iter() {
-                                    let name = member.get_local();
-                                    local_call_stack.insert(name, member);
-                                }
-                                set_layout(events,  &list_commands, reusables,Some(&local_call_stack), layout_engine, user_app );
+                        if let Some(skip_level) = skip {
+                            if skip_level == nesting_level{
+                                skip = None;
                             }
                         }
                     }
-                    _ => {}
-                }
-            }
-            LayoutCommandType::PageData(data_command) => {}
-            LayoutCommandType::ElementConfig(config_command) => {}
-            LayoutCommandType::TextConfig(config_command) => {}
-        }
-    }
-
-    for xml_command in commands.iter() {
-        match xml_command {
-            ConfigCommand::ClickedOpened(event) => {
-                if skip_level == -1 && (!clicked || !layout_engine.hovered()) {
-                    skip_level = nesting_level;
-                }
-                else {
-                    if let Some(event) = event {
-                        events.push(event.clone());
+                    FlowControlCommand::ClickedOpened { event } => {
+                        if skip.is_none() && clicked && layout_engine.hovered() {
+                            if let Some(event) = event {
+                                match locals {
+                                    None => events.push(Event::from_str(event).unwrap()),
+                                    Some(locals) => {
+                                        match locals.get(event) {
+                                            None => events.push(Event::from_str(event).unwrap()),
+                                            Some(command) => {
+                                                match command {
+                                                    PageDataCommand::GetEvent { local:_, from } => {
+                                                        if let Some(event) = user_app.get_event(&from, &list_data) {
+                                                            events.push(event);
+                                                        }
+                                                    }
+                                                    PageDataCommand::SetEvent { local:_, to } => {
+                                                        events.push(to.clone());
+                                                    }
+                                                    _ => events.push(Event::from_str(event).unwrap()),
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        else if skip.is_none() {
+                            skip = Some(nesting_level);
+                        }
+                        nesting_level += 1;
                     }
-                }
+                    FlowControlCommand::ClickedClosed => {
+                        nesting_level -= 1;
 
-                nesting_level += 1;
-            }
-            ConfigCommand::ClickedClosed => {
-                nesting_level -= 1;
-
-                if skip_level == nesting_level {
-                    skip_level = -1;
-                }
-            }
-            ConfigCommand::ElementOpened(_id)=> {
-                nesting_level += 1;
-
-                if skip_level == -1 {
-                    layout_engine.open();
-                }
-            }
-            ConfigCommand::ElementClosed=> {
-                nesting_level -= 1;
-
-                if skip_level == -1 {
-                    layout_engine.close();
-                }
-            }
-            ConfigCommand::ConfigOpened  => {
-                nesting_level += 1;
-
-                if skip_level == -1 {
-                    match config.is_some() {
-                        false => config = Some(layout_engine.start_config()),
-                        true => {} 
+                        if let Some(skip_level) = skip {
+                            if skip_level == nesting_level{
+                                skip = None;
+                            }
+                        }
                     }
-                }
-            }
-            ConfigCommand::ConfigClosed  => {
-                nesting_level -= 1;
+                    FlowControlCommand::ListOpened { src } => {
+                        nesting_level += 1;
 
-                if skip_level == -1 {
-                    match config.is_some() {
-                        false => panic!("invalid xml stack"),
-                        true => {
+                        if skip.is_none() {
+                            recursive_source = src.to_string();
+                            recursive_commands.clear();
+                            recursive_call_stack.clear();
+                            collect_list_commands = true;
+                            collect_recursive_declarations = true;
+                        }
+                        
+                    }
+                    FlowControlCommand::ListClosed => {
+                        nesting_level -= 1;
+
+                        if skip.is_none(){
+                            let list_length = user_app.get_list_length(&recursive_source, &None);
+                            
+                            if let Some(source) = list_length {
+                                for i in 0..source {
+                                    set_layout(
+                                        clicked,
+                                        events,
+                                        &recursive_commands, 
+                                        reusables,
+                                        Some(&recursive_call_stack), 
+                                        Some(ListData { src: &recursive_source, index: i }), 
+                                        &mut None, 
+                                        &mut None, 
+                                        layout_engine, 
+                                        user_app
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    FlowControlCommand::ElementOpened { id:_ } => {
+                        nesting_level += 1;
+
+                        if skip.is_none() {
+                            layout_engine.open_element();
+                        }
+                    }
+                    FlowControlCommand::ElementClosed => {
+                        nesting_level -= 1;
+
+                        if skip.is_none() {
+                            layout_engine.close_element();
+                        }
+                    }
+                    FlowControlCommand::ConfigOpened => {
+                        nesting_level += 1;
+        
+                        if skip.is_none() {
+                            config = Some(ElementConfiguration::default());
+                        }
+                    }
+                    FlowControlCommand::ConfigClosed => {
+                        nesting_level -= 1;
+        
+                        if skip.is_none() && append_config.is_none(){
                             let final_config = config.take().unwrap();
-                            //println!("final config:{:?}", final_config);
-                            layout_engine.end_config(final_config);
-                        },
+                            layout_engine.configure_element(&final_config);
+                        }
+                        else {
+                            //println!("config actually not closed");
+                        }
                     }
-                }
-            }
-            
-            ConfigCommand::CallOpened(fragment_name)  => {
-                if let Some(fragment) = reusables.get(fragment_name) {
-                    selected_fragment = Some(fragment);
-                    local_call_stack.clear();
-                }
-            }
-            ConfigCommand::CallClosed  => {
-                if selected_fragment.is_some() {
-                    if local_call_stack.len() > 0 {
-                        set_layout(clicked, events, selected_fragment.take().unwrap(), reusables, layout_engine, user_app, Some(&local_call_stack));
+                    FlowControlCommand::UseOpened { name } => {
+                        nesting_level += 1;
+
+                        if skip.is_none() {
+                            recursive_commands.clear();
+                            recursive_call_stack.clear();
+                            collect_recursive_declarations = true;
+                            recursive_source = name.to_string();
+                        }
+                        
                     }
-                    else {
-                        set_layout(clicked, events, selected_fragment.take().unwrap(), reusables, layout_engine, user_app, None);
+                    FlowControlCommand::UseClosed => {
+                        nesting_level -= 1;
+
+                        if skip.is_none() {
+                            collect_recursive_declarations = false;
+                            if let Some(reusable) = reusables.get(&recursive_source){
+                                for command in reusable.iter() {
+                                    recursive_commands.push(command);
+                                }
+                                if recursive_call_stack.len() > 0 {
+                                    set_layout(clicked, events, &recursive_commands, reusables, Some(&recursive_call_stack), None, &mut config, &mut text_config, layout_engine, user_app);
+                                }
+                                else {
+                                    set_layout(clicked, events, &recursive_commands, reusables, None, None, &mut config, &mut text_config, layout_engine, user_app);
+                                }
+                            }
+                            
+                        }
                     }
+                    FlowControlCommand::TextElementOpened => {
+                        nesting_level += 1;
+
+                        if skip.is_none() {
+                            text_config = Some(TextConfig::default());
+                        }
+                    }
+                    FlowControlCommand::TextElementClosed => {
+                        if skip.is_none() {
+                            match text_config.is_some() {
+                                false => panic!("invalid xml stack"),
+                                true => {
+                                    let final_text_config = text_config.take().unwrap();
+                                    match text_content.is_some() {
+                                        false => {
+                                            match dynamic_text_content.is_some() {
+                                                false => {
+                                                    layout_engine.add_text_element("", &final_text_config.end(), false);
+                                                }
+                                                true => {
+                                                    let final_dyn_content = dynamic_text_content.take().unwrap();
+                                                    layout_engine.add_text_element(&final_dyn_content, &final_text_config.end(), false);
+                                                }
+                                            }
+                                        }
+                                        true => {
+                                            layout_engine.add_text_element(text_content.take().unwrap(), &final_text_config.end(), false);
+                                        }
+                                    }
+                                    
+                                },
+                            }
+                        }
+        
+                        nesting_level -= 1;
+                    }
+                    FlowControlCommand::TextConfigOpened => {
+                        nesting_level += 1;
+                    }
+                    FlowControlCommand::TextConfigClosed => nesting_level -= 1,
                 }
             }
-
-            ConfigCommand::Get(local, name)  => {
-                if let Some(value) = user_app.get(name) {
-                    local_call_stack.insert(local.to_string(), value);
+            LayoutCommandType::PageData(data_command) => {
+                if collect_recursive_declarations {
+                    let name = data_command.get_local();
+                    recursive_call_stack.insert(name, data_command);
                 }
             }
-            // todo other sets
-            ConfigCommand::SetBool(local, value)  => {
-                local_call_stack.insert(local.to_string(), XMLType::Bool(*value));
-            }
-            ConfigCommand::SetNumeric(local, value)  => {
-                local_call_stack.insert(local.to_string(), XMLType::Numeric(*value));
-            }
-            ConfigCommand::SetText(local, value)  => {
-                local_call_stack.insert(local.to_string(), XMLType::Text(&value.as_str()));
-            }
-
-            config_command => {
-                if skip_level == -1 {
-                    let open_config = config.as_mut().unwrap();
-
+            LayoutCommandType::ElementConfig(config_command) => {
+                if skip.is_none() {
+                    let open_config = match append_config.is_some() {
+                        true => append_config.as_mut().unwrap(),
+                        false => config.as_mut().unwrap()
+                    };
                     match config_command {
                         ConfigCommand::FitX  => open_config.x_fit().parse(),
-                        ConfigCommand::FitXmin(min)  => open_config.x_fit_min(*min).parse(),
-                        ConfigCommand::FitXminmax(min, max)  => open_config.x_fit_min_max(*min, *max).parse(),
+                        ConfigCommand::FitXmin{min}  => open_config.x_fit_min(*min).parse(),
+                        ConfigCommand::FitXminmax{min, max}  => open_config.x_fit_min_max(*min, *max).parse(),
                         ConfigCommand::FitY  => open_config.y_fit().parse(),
-                        ConfigCommand::FitYmin(min)  => open_config.y_fit_min(*min).parse(),
-                        ConfigCommand::FitYminmax(min, max)  => open_config.y_fit_min_max(*min, *max).parse(),
+                        ConfigCommand::FitYmin{min}  => open_config.y_fit_min(*min).parse(),
+                        ConfigCommand::FitYminmax{min, max}  => open_config.y_fit_min_max(*min, *max).parse(),
                         ConfigCommand::GrowX  => open_config.x_grow().parse(),
-                        ConfigCommand::GrowXmin(min)  => open_config.x_grow_min(*min).parse(),
-                        ConfigCommand::GrowXminmax(min, max)  => open_config.x_grow_min_max(*min, *max).parse(),
+                        ConfigCommand::GrowXmin{min} => open_config.x_grow_min(*min).parse(),
+                        ConfigCommand::GrowXminmax{min, max}  => open_config.x_grow_min_max(*min, *max).parse(),
                         ConfigCommand::GrowY  => open_config.y_grow().parse(),
-                        ConfigCommand::GrowYmin(min)  => open_config.y_grow_min(*min).parse(),
-                        ConfigCommand::GrowYminmax(min, max)  => open_config.y_grow_min_max(*min, *max).parse(),
+                        ConfigCommand::GrowYmin{min} => open_config.y_grow_min(*min).parse(),
+                        ConfigCommand::GrowYminmax{min, max}  => open_config.y_grow_min_max(*min, *max).parse(),
                         ConfigCommand::FixedX(x)  => open_config.x_fixed(*x).parse(),
                         ConfigCommand::FixedY(y)  => open_config.y_fixed(*y).parse(),
                         ConfigCommand::PercentX(size)  => open_config.x_percent(*size).parse(),
@@ -1077,166 +1277,129 @@ where
                         ConfigCommand::ChildAlignmentYTop  => open_config.align_children_y_top().parse(),
                         ConfigCommand::ChildAlignmentYCenter  => open_config.align_children_y_center().parse(),
                         ConfigCommand::ChildAlignmentYBottom  => open_config.align_children_y_bottom().parse(),
-                        ConfigCommand::Color(color)  => todo!(),
+                        ConfigCommand::Color(color)  => open_config.color(*color).parse(),
+                        ConfigCommand::DynamicColor(color) => match locals {
+                            None => match user_app.get_color(color, &list_data) {
+                                None => open_config.color(Color::default()).parse(),
+                                Some(color) => open_config.color(*color).parse(),
+                            }
+                            Some(locals) =>  match locals.get(color) {
+                                None => match user_app.get_color(color, &list_data) {
+                                    None => open_config.color(Color::default()).parse(),
+                                    Some(color) => open_config.color(*color).parse(),
+                                }
+                                Some(data_command) => {
+                                    match data_command {
+                                        PageDataCommand::GetColor { local:_, from } =>  match user_app.get_color(from, &list_data) {
+                                            None => open_config.color(Color::default()).parse(),
+                                            Some(color) => open_config.color(*color).parse(),
+                                        }
+                                        PageDataCommand::SetColor { local:_, to } => open_config.color(*to).parse(),
+                                        _ => open_config.color(Color::default()).parse(),
+                                    }
+                                }
+                            }
+                        }
                         ConfigCommand::RadiusAll(radius)  => open_config.radius_all(*radius).parse(),
                         ConfigCommand::RadiusTopLeft(radius)  => open_config.radius_top_left(*radius).parse(),
                         ConfigCommand::RadiusTopRight(radius)  => open_config.radius_bottom_right(*radius).parse(),
                         ConfigCommand::RadiusBottomRight(radius)  => open_config.radius_bottom_right(*radius).parse(),
                         ConfigCommand::RadiusBottomLeft(radius)  => open_config.radius_bottom_left(*radius).parse(),
-                        ConfigCommand::BorderAll(border, color)  => todo!(),
-                        ConfigCommand::BorderTop(border, color)  => todo!(),
-                        ConfigCommand::BorderBottom(border, color)  => todo!(),
-                        ConfigCommand::BorderLeft(border, color)  => todo!(),
-                        ConfigCommand::BorderRight(border, color)  => todo!(),
-                        ConfigCommand::BorderBetweenChildren(border, color)  => todo!(),
-                        ConfigCommand::TextOpened  => {
-                            nesting_level += 1;
-            
-                            text_config = Some(TextConfig::default());
-                        } 
-                        ConfigCommand::TextClosed  => {
-                            match text_config.is_some() {
-                                false => panic!("invalid xml stack"),
-                                true => {
-                                    let final_text_config = text_config.take().unwrap();
-                                    match text_content.is_some() {
-                                        false => {
-                                            match dynamic_text_content.is_some() {
-                                                false => {
-                                                    
-                                                    layout_engine.add_text_element("", &final_text_config.end(), false);
-                                                }
-                                                true => {
-                                                    let final_dyn_content = dynamic_text_content.take().unwrap();
-                                                    layout_engine.add_text_element(&final_dyn_content, &final_text_config.end(), false);
-                                                }
-                                            }
-                                        }
-                                        true => {
-                                            layout_engine.add_text_element(text_content.take().unwrap(), &final_text_config.end(), false);
-                                        }
-                                    }
-                                    
-                                },
+                        ConfigCommand::BorderColor(color) => open_config.border_color(*color).parse(),
+                        ConfigCommand::BorderDynamicColor(color) => match locals {
+                            None => match user_app.get_color(color, &list_data) {
+                                None => open_config.border_color(Color::default()).parse(),
+                                Some(color) => open_config.border_color(*color).parse(),
                             }
-            
-                            nesting_level -= 1;
-                        }
-                        ConfigCommand::FontId(id)  => {
-                            text_config.as_mut().unwrap().font_id(*id);
-                        }
-                        ConfigCommand::TextAlignLeft  => {
-                            text_config.as_mut().unwrap().alignment(crate::text::TextAlignment::Left);
-                        }
-                        ConfigCommand::TextAlignRight  => {
-                            text_config.as_mut().unwrap().alignment(crate::text::TextAlignment::Right);
-                        }
-                        ConfigCommand::TextAlignCenter  => {
-                            text_config.as_mut().unwrap().alignment(crate::text::TextAlignment::Center);
-                        }
-                        ConfigCommand::TextLineHeight(lh)  => {
-                            text_config.as_mut().unwrap().line_height(*lh);
-                        }
-                        ConfigCommand::FontSize(size)  => {
-                            text_config.as_mut().unwrap().font_size(*size);
-                        }
-                        ConfigCommand::TextContent(content)  => {
-                            text_content = Some(content);
-                        }
-                        ConfigCommand::DynamicTextContent(content)  => {
-                            match locals.is_some() {
-                                true => {
-                                    match locals.as_ref().unwrap().get(content) {
-                                        None => dynamic_text_content = Some(get_text(&content, user_app).unwrap()),
-                                        Some(local) => {
-                                            match local {
-                                                XMLType::Text(text) => dynamic_text_content = Some(text),
-                                                _ => dynamic_text_content = None
-                                            }
+                            Some(locals) =>  match locals.get(color) {
+                                None => match user_app.get_color(color, &list_data) {
+                                    None => open_config.border_color(Color::default()).parse(),
+                                    Some(color) => open_config.border_color(*color).parse(),
+                                }
+                                Some(data_command) => {
+                                    match data_command {
+                                        PageDataCommand::GetColor { local:_, from } =>  match user_app.get_color(from, &list_data) {
+                                            None => open_config.border_color(Color::default()).parse(),
+                                            Some(color) => open_config.border_color(*color).parse(),
                                         }
+                                        PageDataCommand::SetColor { local:_, to } => open_config.border_color(*to).parse(),
+                                        _ => open_config.border_color(Color::default()).parse(),
                                     }
-                                },
-                                false => dynamic_text_content = Some(get_text(&content, user_app).unwrap())
+                                }
                             }
                         }
-                        ConfigCommand::TextColor(color)  => {
-                            text_config.as_mut().unwrap().color(color[0], color[1], color[2], color[3]);
-                        }
-            
-                        ConfigCommand::Scroll(vertical, horizontal)  => {
-                            config.as_mut().unwrap().scroll(*vertical, *horizontal);
-                        }
-                        other_command => {}
-                    };
-                }
-            }
-        }
-
-        match xml_command {
-            ConfigCommand::IfOpened(tag) => {
-                if skip_level == -1 && !get_bool(&tag, user_app) {
-                    skip_level = nesting_level;
-                }
-
-                nesting_level += 1;
-            }
-            ConfigCommand::IfClosed => {
-                nesting_level -= 1;
-
-                if skip_level == nesting_level {
-                    skip_level = -1;
-                }
-            }
-            ConfigCommand::HoveredOpened => {
-                if skip_level == -1 && !layout_engine.hovered() {
-                    skip_level = nesting_level;
-                }
-
-                nesting_level += 1;
-            }
-            ConfigCommand::HoveredClosed => {
-                nesting_level -= 1;
-
-                if skip_level == nesting_level {
-                    skip_level = -1;
-                }
-            }
-            ConfigCommand::ClickedOpened(event) => {
-                if skip_level == -1 && (!clicked || !layout_engine.hovered()) {
-                    skip_level = nesting_level;
-                }
-                else {
-                    if let Some(event) = event {
-                        events.push(event.clone());
+                        ConfigCommand::BorderAll(border)  => open_config.border_all(*border as u16).parse(),
+                        ConfigCommand::BorderTop(border)  => open_config.border_top(*border as u16).parse(),
+                        ConfigCommand::BorderBottom(border)  => open_config.border_bottom(*border as u16).parse(),
+                        ConfigCommand::BorderLeft(border)  => open_config.border_left(*border as u16).parse(),
+                        ConfigCommand::BorderRight(border)  => open_config.border_right(*border as u16).parse(),
+                        ConfigCommand::BorderBetweenChildren(border)  => open_config.border_between_children(*border as u16).parse(),
+                        ConfigCommand::Scroll { vertical, horizontal } => open_config.scroll(*vertical, *horizontal).parse(),
+                        ConfigCommand::Image { name, width, height } => open_config.image(name, *width, *height).parse(),
                     }
                 }
-
-                nesting_level += 1;
             }
-            ConfigCommand::ClickedClosed => {
-                nesting_level -= 1;
-
-                if skip_level == nesting_level {
-                    skip_level = -1;
+            LayoutCommandType::TextConfig(config_command) => {
+                if skip.is_none() {
+                    let text_config = text_config.as_mut().unwrap();
+                    match config_command {
+                        TextConfigCommand::AlignCenter => text_config.alignment_center().parse(),
+                        TextConfigCommand::AlignLeft => text_config.alignment_left().parse(),
+                        TextConfigCommand::AlignRight => text_config.alignment_right().parse(),
+                        TextConfigCommand::Color(color) => text_config.color(*color).parse(),
+                        TextConfigCommand::Content(content) => text_content = Some(content),
+                        TextConfigCommand::DefaultText(_default) => {}
+                        TextConfigCommand::DynamicContent(name) => {
+                            #[cfg(feature="parse_logger")]
+                            println!("-------------------Command: Dynamic Text Content. Name: {:?}", name);
+                            match locals {
+                                None => match user_app.get_text(name, &list_data) {
+                                    None => {
+                                        text_content = None;
+                                        dynamic_text_content = None;
+                                    }
+                                    Some(text) => dynamic_text_content = Some(text),
+                                }
+                                Some(locals) =>  match locals.get(name) {
+                                    None => match user_app.get_text(name, &list_data) {
+                                        None => {
+                                            text_content = None;
+                                            dynamic_text_content = None;
+                                        }
+                                        Some(text) => dynamic_text_content = Some(text),
+                                    }
+                                    Some(data_command) => {
+                                        #[cfg(feature="parse_logger")]
+                                        println!("trying to get dynamic text: {:?}", name);
+                                        match data_command {
+                                            PageDataCommand::SetText { local:_, to } => {
+                                                dynamic_text_content = Some(to);
+                                            }
+                                            PageDataCommand::GetText { local:_, from } => {
+                                                match user_app.get_text(from, &list_data) {
+                                                    None => {
+                                                        text_content = None;
+                                                        dynamic_text_content = None;
+                                                    }
+                                                    Some(text) => dynamic_text_content = Some(text),
+                                                }
+                                            }
+                                            _ => {
+                                                text_content = None;
+                                                dynamic_text_content = None;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        TextConfigCommand::FontId(id) => text_config.font_id(*id).parse(),
+                        TextConfigCommand::FontSize(size) => text_config.font_size(*size).parse(),
+                        TextConfigCommand::LineHeight(height) => text_config.line_height(*height).parse(),
+                    }
                 }
+                
             }
-            ConfigCommand::ElementOpened(_id)=> {
-                nesting_level += 1;
-
-                if skip_level == -1 {
-                    layout_engine.open();
-                }
-            }
-            ConfigCommand::ElementClosed=> {
-                nesting_level -= 1;
-
-                if skip_level == -1 {
-                    layout_engine.close();
-                }
-            }
-            
-            
-            _other => {}//println!("unused layout command: {:}", other);}
         }
     }
 }

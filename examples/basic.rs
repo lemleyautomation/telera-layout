@@ -1,6 +1,3 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use telera_layout::LayoutEngine;
 use telera_layout::ElementConfiguration;
 use telera_layout::TextConfig;
@@ -17,7 +14,7 @@ struct LayoutRenderer{
 }
 
 impl MeasureText for LayoutRenderer {
-    fn measure_text(&mut self, text: &str, text_config: TextConfig) -> Vec2 {
+    fn measure_text(&mut self, _text: &str, _text_config: TextConfig) -> Vec2 {
         //println!("{:?}", self.s);
         Vec2 { x: 20.0, y: 12.0 }    
     }
@@ -27,14 +24,6 @@ impl LayoutRenderer {
     pub fn new() -> Self {
         Self { mt: Vec2 { x: 30.0, y: 30.0 }, s: "what's up".to_string() }
     }
-}
-
-// fn measure_text(_text: &str, _text_config: &TextConfig, _user_data: &mut Rc<RefCell<LayoutRenderer>>) -> Vec2 {
-//     Vec2 { x: 20.0, y: 12.0 }
-// }
-
-fn measure_text(_text: &str, _text_config: &TextConfig, _user_data: &mut Option<bool>) -> Vec2 {
-    Vec2 { x: 20.0, y: 12.0 }
 }
 
 fn main(){

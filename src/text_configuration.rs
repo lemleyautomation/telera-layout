@@ -64,17 +64,35 @@ impl TextConfig {
 
     /// Sets the text wrapping mode.
     #[inline]
-    pub fn wrap_mode(&mut self, mode: Clay_TextElementConfigWrapMode) -> &mut Self {
-        self.wrap_mode = mode;
+    pub fn wrap_mode_words(&mut self) -> &mut Self {
+        self.wrap_mode = Clay_TextElementConfigWrapMode::CLAY_TEXT_WRAP_WORDS;
+        self
+    }
+    pub fn wrap_mode_new_lines(&mut self) -> &mut Self {
+        self.wrap_mode = Clay_TextElementConfigWrapMode::CLAY_TEXT_WRAP_NEWLINES;
+        self
+    }
+    pub fn wrap_mode_none(&mut self) -> &mut Self {
+        self.wrap_mode = Clay_TextElementConfigWrapMode::CLAY_TEXT_WRAP_NONE;
         self
     }
 
     /// Sets the text alignment.
     #[inline]
-    pub fn alignment(&mut self, alignment: Clay_TextAlignment) -> &mut Self {
-        self.alignment = alignment;
+    pub fn alignment_left(&mut self) -> &mut Self {
+        self.alignment = Clay_TextAlignment::CLAY_TEXT_ALIGN_LEFT;
         self
     }
+    pub fn alignment_right(&mut self) -> &mut Self {
+        self.alignment = Clay_TextAlignment::CLAY_TEXT_ALIGN_RIGHT;
+        self
+    }
+    pub fn alignment_center(&mut self) -> &mut Self {
+        self.alignment = Clay_TextAlignment::CLAY_TEXT_ALIGN_CENTER;
+        self
+    }
+
+    pub fn parse(&mut self){}
 
     /// Finalizes the text configuration
     #[inline]

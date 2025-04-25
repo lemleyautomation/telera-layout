@@ -159,7 +159,7 @@
                 <list src="documents">
                     <get-text local="title" from="title" />
                     <get-bool local="selected" from="selected_document" />
-                    <get-event local="clicked" from="clicked" />
+                    <get-event local="Clicked" from="Clicked" />
 
                     <element if="selected">
                         <element-config>
@@ -187,7 +187,7 @@
                                 <color is="rgb(120, 120, 120)" />
                             </hovered>
                             <radius-all is="8" />
-                            <clicked emit="clicked">
+                            <clicked emit="Clicked">
                                 <border-color is="white" />
                                 <border-all is="2" />
                             </clicked>
