@@ -246,6 +246,41 @@
 <!ATTLIST scroll vertical (true|false) "false">
 <!ATTLIST scroll horizontal (true|false) "false">
 
+<!ELEMENT floating EMPTY>
+
+<!ELEMENT floating-offset EMPTY>
+<!ATTLIST floating-offset x CDATA #REQUIRED>
+<!ATTLIST floating-offset y CDATA #REQUIRED>
+
+<!ELEMENT floating-size EMPTY>
+<!ATTLIST floating-size width CDATA #REQUIRED>
+<!ATTLIST floating-size height CDATA #REQUIRED>
+
+<!ELEMENT floating-z-index EMPTY>
+<!ATTLIST floating-z-index z CDATA #REQUIRED>
+
+<!ELEMENT floating-attatch-to-parent EMPTY>
+<!ATTLIST floating-attatch at (
+    top_left|center-left|bottom-left|
+    top-center|center|bottom-center|
+    top-right|center-right|bottom-right
+) #REQUIRED>
+
+<!ELEMENT floating-attach-element EMPTY>
+<!ATTLIST floating-attach-element at (
+    top_left|center-left|bottom-left|
+    top-center|center|bottom-center|
+    top-right|center-right|bottom-right
+) #REQUIRED>
+
+<!ELEMENT floating-capture-pointer EMPTY>
+<!ATTLIST floating-capture-pointer state (true|false) #REQUIRED>
+
+<!ELEMENT floating-attach-to-element EMPTY>
+<!ATTLIST floating-attach-to-element id CDATA #REQUIRED>
+
+<!ELEMENT floating-attach-to-root EMPTY>
+
 <!ELEMENT image EMPTY>
 <!ATTLIST image src CDATA #REQUIRED>
 <!ATTLIST image src-width CDATA #REQUIRED>
@@ -254,15 +289,22 @@
 <!ELEMENT font-id EMPTY>
 <!ATTLIST font-id is CDATA #REQUIRED>
 
-<!ELEMENT text-align-left EMPTY>
-<!ELEMENT text-align-right EMPTY>
-<!ELEMENT text-align-center EMPTY>
-
 <!ELEMENT font-size EMPTY>
 <!ATTLIST font-size is CDATA #REQUIRED>
 
+<!ELEMENT font-letter-spacing EMPTY>
+<!ATTLIST font-letter-spacing is CDATA #REQUIRED>
+
 <!ELEMENT line-height EMPTY>
 <!ATTLIST line-height is CDATA #IMPLIED>
+
+<!ELEMENT text-wrap-words EMPTY>
+<!ELEMENT text-wrap-new-lines EMPTY>
+<!ELEMENT text-wrap-none EMPTY>
+
+<!ELEMENT text-align-left EMPTY>
+<!ELEMENT text-align-right EMPTY>
+<!ELEMENT text-align-center EMPTY>
 
 <!ELEMENT content (#PCDATA)>
 
