@@ -1,3 +1,4 @@
+use std::hash::Hash;
 use std::{collections::HashMap, fmt::Debug, str::FromStr};
 
 use csscolorparser;
@@ -6,7 +7,10 @@ use quick_xml::events::Event as XMLEvent;
 use quick_xml::reader::Reader;
 use quick_xml::events::BytesStart;
 use quick_xml::Decoder;
-use strum_macros::{Display, EnumString};
+
+pub use strum;
+pub use strum_macros::Display;
+pub use strum_macros::EnumString;
 
 use crate::{Color, ElementConfiguration, LayoutEngine, MeasureText, TextConfig};
 
@@ -310,17 +314,18 @@ fn set_sizing_attributes<'a>(bytes_start: &'a mut BytesStart) -> SsizeType{
 }
 
 #[derive(Default, Debug)]
-pub struct Parser<Event>
+pub struct Parser<Event, Page>
 where
-    Event: Clone+Debug+PartialEq+FromStr
+    Event: Clone+Debug+PartialEq+FromStr,
+    Page: FromStr+Clone+Hash+Eq,
 {
-    pages: HashMap<String, Vec<LayoutCommandType<Event>>>,
+    pages: HashMap<Page, Vec<LayoutCommandType<Event>>>,
     reusable: HashMap<String, Vec<LayoutCommandType<Event>>>,
 
     mode: ParsingMode,
 
     current_page: Vec<LayoutCommandType<Event>>,
-    current_page_name: String,
+    current_page_name: Page,
 
     current_reusable: Vec<LayoutCommandType<Event>>,
     reusable_name: String,
@@ -332,10 +337,12 @@ where
     text_content: Option<String>,
 }
 
-impl<Event> Parser<Event>
+impl<Event, Page> Parser<Event, Page>
 where
     Event: Clone+Debug+PartialEq+FromStr,
     <Event as FromStr>::Err: Debug,
+    Page: FromStr+Clone+Hash+Eq,
+    <Page as FromStr>::Err: Debug
 {
     pub fn update_page(&mut self, xml_string: &str){
         let pages_copy = self.pages.clone();
@@ -378,7 +385,7 @@ where
                         }
                         b"page" => match e.cdata("name") {
                             None => return Err(ParserError::UnNamedPage),
-                            Some(name) => self.current_page_name = name
+                            Some(name) => self.current_page_name = Page::from_str(&name).unwrap()
                         }
                         b"element" => {
                             if let Some(condition) = e.cdata("if") {
@@ -781,7 +788,6 @@ where
         }
         self.pages.insert(self.current_page_name.clone(), self.current_page.clone());
         self.current_page.clear();
-        self.current_page_name = "".to_string();
         Ok(())
     }
     fn flow_control(&mut self, command: FlowControlCommand){
@@ -855,7 +861,7 @@ where
 
     pub fn set_page<'render_pass, Renderer, Image, Custom, CustomLayout, UserApp>(
         &mut self,
-        page: &str,
+        page: &Page ,
         clicked: bool,
         layout_engine: &mut LayoutEngine<Renderer, Image, Custom, CustomLayout>,
         user_app: &UserApp
@@ -932,9 +938,7 @@ where
     let mut text_content = None::<&String>;
     let mut dynamic_text_content = None::<&'render_pass str>;
 
-    let mut index = 0;
     for command in commands.iter() {
-        index += 1;
         #[cfg(feature="parse_logger")]
         println!("skip active: {:?}, {:?}", &skip, command);
         if collect_list_commands {

@@ -1,13 +1,9 @@
-use std::cell::RefCell;
-use std::rc::Rc;
 use std::fs::read_to_string;
 
 use telera_layout::LayoutEngine;
-use telera_layout::ElementConfiguration;
 use telera_layout::ParserDataAccess;
 use telera_layout::TextConfig;
 use telera_layout::MeasureText;
-use telera_layout::Color;
 use telera_layout::Vec2;
 use telera_layout::RenderCommand;
 use telera_layout::Parser;
@@ -21,7 +17,7 @@ struct LayoutRenderer{
 }
 
 impl MeasureText for LayoutRenderer {
-    fn measure_text(&mut self, text: &str, text_config: TextConfig) -> Vec2 {
+    fn measure_text(&mut self, _text: &str, _text_config: TextConfig) -> Vec2 {
         //println!("{:?}", self.s);
         Vec2 { x: 20.0, y: 12.0 }    
     }
@@ -39,6 +35,12 @@ enum Events{
     None
 }
 
+#[derive(EnumString,Clone,Hash,PartialEq,std::cmp::Eq,Default)]
+enum Pages{
+    #[default]
+    Main
+}
+
 struct App{}
 
 impl ParserDataAccess<(),Events> for App{}
@@ -49,7 +51,7 @@ fn main(){
 
     let mut user_app = App{};
 
-    let mut pages = Parser::<Events>::default();
+    let mut pages = Parser::<Events, Pages>::default();
     let file = "examples/layout.xml";
     let file = read_to_string(file).unwrap();
     pages.add_page(&file).unwrap();
@@ -58,7 +60,7 @@ fn main(){
 
     layout.begin_layout(layout_renderer);
 
-    pages.set_page("Main", false, &mut layout, &mut user_app);
+    pages.set_page(&Pages::Main, false, &mut layout, &mut user_app);
 
     let (render_commands, mut layout_renderer) = layout.end_layout();
 
