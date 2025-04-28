@@ -17,7 +17,7 @@ impl ElementConfiguration{
                 Clay_String { 
                     isStaticallyAllocated: true, 
                     length: label.len() as i32, 
-                    chars: label.as_ptr() as *const i8
+                    chars: label.as_ptr() as *const _
                 },
                 0,
                 0

@@ -150,19 +150,19 @@ static inline void Clay__SuppressUnusedLatchDefinitionVariableWarning(void) { (v
 
 #define CLAY_TEXT(text, textConfig) Clay__OpenTextElement(text, textConfig)
 
-#define CLAY_PACKED_ENUM enum
-
 #ifdef __cplusplus
 
 #define CLAY__INIT(type) type
 
-// #define CLAY_PACKED_ENUM enum : uint8_t
+#define CLAY_PACKED_ENUM enum : uint8_t
 
 #define CLAY__DEFAULT_STRUCT {}
 
 #else
 
 #define CLAY__INIT(type) (type)
+
+#define CLAY_PACKED_ENUM enum
 
 // #if defined(_MSC_VER) && !defined(__clang__)
 // #define CLAY_PACKED_ENUM __pragma(pack(push, 1)) enum __pragma(pack(pop))

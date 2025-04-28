@@ -190,7 +190,7 @@ impl<TextRenderer: MeasureText, ImageElementData: Debug + Default, CustomElement
                 Clay_String { 
                     isStaticallyAllocated: statically_allicated, 
                     length: content.len() as i32, 
-                    chars: content.as_ptr() as *const i8
+                    chars: content.as_ptr() as *mut _
                 }, 
                 text_config 
             ) 
