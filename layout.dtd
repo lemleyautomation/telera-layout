@@ -37,7 +37,7 @@
     (text-align-left|text-align-right|text-align-center)|
     font-size|
     line-height|
-    (color|dyn-color)
+    (color|dyn-color)|editable
     )*>
 <!ATTLIST text-config use CDATA #IMPLIED>
 
@@ -317,6 +317,9 @@
 <!ELEMENT text-align-left EMPTY>
 <!ELEMENT text-align-right EMPTY>
 <!ELEMENT text-align-center EMPTY>
+
+<!ELEMENT editable EMPTY>
+<!ATTLIST editable state (true|false) #REQUIRED>
 
 <!ELEMENT content (#PCDATA)>
 

@@ -154,7 +154,8 @@ static inline void Clay__SuppressUnusedLatchDefinitionVariableWarning(void) { (v
 
 #define CLAY__INIT(type) type
 
-#define CLAY_PACKED_ENUM enum : uint8_t
+//#define CLAY_PACKED_ENUM enum : uint8_t
+#define CLAY_PACKED_ENUM enum
 
 #define CLAY__DEFAULT_STRUCT {}
 

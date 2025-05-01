@@ -191,6 +191,7 @@ pub enum TextConfigCommand{
     AlignCenter,
     LineHeight(u16),
     FontSize(u16),
+    Editable(bool),
     Content(String),
     DynamicContent(String),
     Color(Color),
@@ -753,6 +754,19 @@ where
     
                             self.config_command(ConfigCommand::Scroll{vertical, horizontal});
                         }
+                        b"image" => {
+                            let name = e.cdata("src");
+                            let width = try_parse::<f32>("src-width", &mut e);
+                            let height = try_parse::<f32>("src-height", &mut e);
+
+                            if name.is_some() && width.is_some() && height.is_some() {
+                                let name = name.unwrap();
+                                let width = width.unwrap();
+                                let height = height.unwrap();
+
+                                self.config_command(ConfigCommand::Image { name, width, height });
+                            }
+                        }
                         // todo:
                         // - image
                         // - custom element
@@ -773,6 +787,7 @@ where
                             None => return Err(ParserError::RequiredAttributeValueMissing),
                             Some(value) => self.text_config(TextConfigCommand::LineHeight(value)),
                         }
+                        b"editable" => self.text_config(TextConfigCommand::Editable(true)),
                         b"dyn-content" => match e.cdata("from") {
                             None => return Err(ParserError::RequiredAttributeValueMissing),
                             Some(name) => self.text_config(TextConfigCommand::DynamicContent(name)),
@@ -861,7 +876,7 @@ where
 
     pub fn set_page<'render_pass, Renderer, Image, Custom, CustomLayout, UserApp>(
         &mut self,
-        page: &Page ,
+        page: &Page,
         clicked: bool,
         layout_engine: &mut LayoutEngine<Renderer, Image, Custom, CustomLayout>,
         user_app: &UserApp
@@ -869,7 +884,7 @@ where
     where 
         Renderer: MeasureText,
         Image: Clone+Debug+Default+PartialEq, 
-        Event: FromStr+Clone+PartialEq+Debug, 
+        Event: FromStr+Clone+PartialEq+Debug+Default, 
         Custom: Debug+Default,
         UserApp: ParserDataAccess<Image, Event>
     {
@@ -899,7 +914,7 @@ fn set_layout<'render_pass, Renderer: MeasureText, Image, Event, Custom, CustomL
 )
 where 
     Image: Clone+Debug+Default+PartialEq, 
-    Event: FromStr+Clone+PartialEq+Debug,
+    Event: FromStr+Clone+PartialEq+Debug+Default,
     <Event as FromStr>::Err: Debug,
     Custom: Debug+Default,
     UserApp: ParserDataAccess<Image, Event>
@@ -1057,33 +1072,46 @@ where
                         }
                     }
                     FlowControlCommand::ClickedOpened { event } => {
-                        if skip.is_none() && clicked && layout_engine.hovered() {
-                            if let Some(event) = event {
-                                match locals {
-                                    None => events.push(Event::from_str(event).unwrap()),
-                                    Some(locals) => {
-                                        match locals.get(event) {
-                                            None => events.push(Event::from_str(event).unwrap()),
-                                            Some(command) => {
-                                                match command {
-                                                    PageDataCommand::GetEvent { local:_, from } => {
-                                                        if let Some(event) = user_app.get_event(&from, &list_data) {
-                                                            events.push(event);
+                        if skip.is_none() {
+                            skip = Some(nesting_level);
+
+                            if layout_engine.hovered() {
+                                if clicked {
+                                    skip = None;
+                                    if let Some(event) = event {
+                                        match locals {
+                                            None => events.push(match Event::from_str(event) {
+                                                Err(_) => Event::default(),
+                                                Ok(event) => event
+                                            }),
+                                            Some(locals) => {
+                                                match locals.get(event) {
+                                                    None => events.push(match Event::from_str(event) {
+                                                        Err(_) => Event::default(),
+                                                        Ok(event) => event
+                                                    }),
+                                                    Some(command) => {
+                                                        match command {
+                                                            PageDataCommand::GetEvent { local:_, from } => {
+                                                                if let Some(event) = user_app.get_event(&from, &list_data) {
+                                                                    events.push(event);
+                                                                }
+                                                            }
+                                                            PageDataCommand::SetEvent { local:_, to } => {
+                                                                events.push(to.clone());
+                                                            }
+                                                            _ => events.push(match Event::from_str(event) {
+                                                                Err(_) => Event::default(),
+                                                                Ok(event) => event
+                                                            }),
                                                         }
                                                     }
-                                                    PageDataCommand::SetEvent { local:_, to } => {
-                                                        events.push(to.clone());
-                                                    }
-                                                    _ => events.push(Event::from_str(event).unwrap()),
                                                 }
                                             }
                                         }
                                     }
                                 }
                             }
-                        }
-                        else if skip.is_none() {
-                            skip = Some(nesting_level);
                         }
                         nesting_level += 1;
                     }
@@ -1339,7 +1367,29 @@ where
                         ConfigCommand::BorderRight(border)  => open_config.border_right(*border as u16).parse(),
                         ConfigCommand::BorderBetweenChildren(border)  => open_config.border_between_children(*border as u16).parse(),
                         ConfigCommand::Scroll { vertical, horizontal } => open_config.scroll(*vertical, *horizontal).parse(),
-                        ConfigCommand::Image { name, width, height } => open_config.image(name, *width, *height).parse(),
+                        ConfigCommand::Image { name, width, height } => {
+                            match locals {
+                                None => match user_app.get_image(name, &list_data) {
+                                    None => {},
+                                    Some(image) => open_config.image(image, *width, *height).parse(),
+                                }
+                                Some(locals) =>  match locals.get(name) {
+                                    None => match user_app.get_image(name, &list_data) {
+                                        None => {},
+                                        Some(image) => open_config.image(image, *width, *height).parse(),
+                                    }
+                                    Some(data_command) => {
+                                        match data_command {
+                                            PageDataCommand::GetImage { local:_, from } =>  match user_app.get_image(from, &list_data) {
+                                                None => {},
+                                                Some(image) => open_config.image(image, *width, *height).parse(),
+                                            }
+                                            _ => {},
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1351,6 +1401,7 @@ where
                         TextConfigCommand::AlignLeft => text_config.alignment_left().parse(),
                         TextConfigCommand::AlignRight => text_config.alignment_right().parse(),
                         TextConfigCommand::Color(color) => text_config.color(*color).parse(),
+                        TextConfigCommand::Editable(state) => (),
                         TextConfigCommand::Content(content) => text_content = Some(content),
                         TextConfigCommand::DefaultText(_default) => {}
                         TextConfigCommand::DynamicContent(name) => {
