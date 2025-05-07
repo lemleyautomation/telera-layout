@@ -153,7 +153,8 @@
 <!ELEMENT grow EMPTY>
 
 <!ELEMENT id EMPTY>
-<!ATTLIST id is CDATA #REQUIRED>
+<!ATTLIST id is CDATA "id">
+<!ATTLIST id from CDATA #IMPLIED>
 
 <!ELEMENT width-grow EMPTY>
 <!ATTLIST width-grow min CDATA #IMPLIED>

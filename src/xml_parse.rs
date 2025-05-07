@@ -12,11 +12,13 @@ pub use strum;
 pub use strum_macros::Display;
 pub use strum_macros::EnumString;
 
+use crate::bindings::false_;
 use crate::{Color, ElementConfiguration, LayoutEngine, MeasureText, TextConfig};
 
 #[derive(Debug, Display)]
 pub enum ParserError{
     RequiredAttributeValueMissing,
+    DynamicAndStaticValues,
     UnNamedPage,
     UnSpecifiedIdTag,
     ListWithoutSource,
@@ -112,6 +114,8 @@ impl<Event: Clone+Debug+PartialEq> PageDataCommand<Event>{
 #[derive(Clone, Debug, Display, PartialEq)]
 pub enum ConfigCommand{
     Id(String),
+    DynamicId(String),
+    StaticId(String),
 
     GrowAll,
     GrowX,
@@ -314,6 +318,34 @@ fn set_sizing_attributes<'a>(bytes_start: &'a mut BytesStart) -> SsizeType{
     }
 }
 
+enum ValueRef{
+    Dynamic(String),
+    Static(String)
+}
+
+fn dyn_or_stat<'a>(e: &'a mut BytesStart) -> Result<ValueRef, ParserError>{
+    let static_value = e.cdata("is");
+    let dynamic_value = e.cdata("from");
+
+    match ((static_value.is_some() as u8)*2) + (dynamic_value.is_some() as u8) {
+        0 => return Err(ParserError::RequiredAttributeValueMissing),
+        1 => return Ok(ValueRef::Dynamic(dynamic_value.unwrap())),
+        2 => return Ok(ValueRef::Static(static_value.unwrap())),
+        3 => return Err(ParserError::DynamicAndStaticValues),
+        _ => return Err(ParserError::RequiredAttributeValueMissing),
+    }
+}
+
+#[derive(Debug)]
+struct XMLPage<Event>
+where
+    Event: Clone+Debug+PartialEq+FromStr,
+{
+    commands: Vec<LayoutCommandType<Event>>,
+    reusables: HashMap<String, Vec<LayoutCommandType<Event>>>,
+    editable_text: HashMap<String, u32>
+}
+
 #[derive(Default, Debug)]
 pub struct Parser<Event, Page>
 where
@@ -322,6 +354,8 @@ where
 {
     pages: HashMap<Page, Vec<LayoutCommandType<Event>>>,
     reusable: HashMap<String, Vec<LayoutCommandType<Event>>>,
+
+    page: HashMap<Page, XMLPage<Event>>,
 
     mode: ParsingMode,
 
@@ -572,9 +606,11 @@ where
                             };
                             self.page_data(PageDataCommand::GetEvent { local, from });
                         }
-                        b"id" => match e.cdata("is") {
-                            None => return Err(ParserError::UnSpecifiedIdTag),
-                            Some(id) => self.config_command(ConfigCommand::Id(id)),
+                        b"id" => {
+                            match dyn_or_stat(&mut e).unwrap() {
+                                ValueRef::Dynamic(dyn_id) => self.config_command(ConfigCommand::DynamicId(dyn_id)),
+                                ValueRef::Static(stat_id) => self.config_command(ConfigCommand::StaticId(stat_id)),
+                            }
                         }
                         b"grow" => self.config_command(ConfigCommand::GrowAll),
                         b"width-fit" => match set_sizing_attributes(&mut e) {
@@ -801,6 +837,18 @@ where
                 _ => ()
             }
         }
+        
+        match self.page.contains_key(&self.current_page_name) {
+            true => self.page.remove(&self.current_page_name),
+            false => self.page.insert(self.current_page_name.clone(),
+            XMLPage {
+                    commands: self.current_page.clone(),
+                    reusables: self.reusable.clone(),                     
+                    editable_text: HashMap::new(),
+                }
+            )
+        };
+        
         self.pages.insert(self.current_page_name.clone(), self.current_page.clone());
         self.current_page.clear();
         Ok(())
@@ -1301,6 +1349,16 @@ where
                         ConfigCommand::PaddingRight(padding)  => open_config.padding_right(*padding).parse(),
                         ConfigCommand::DirectionTTB  => open_config.direction(true).parse(),
                         ConfigCommand::DirectionLTR  => open_config.direction(false).parse(),
+                        ConfigCommand::DynamicId(name) => {
+                            if let Some(locals) = locals {
+                                if let Some(data_command) = locals.get(name) {
+                                    if let PageDataCommand::SetText { local:_, to } = data_command {
+                                        open_config.id(&to);
+                                    }
+                                }
+                            }
+                        }
+                        ConfigCommand::StaticId(label)|
                         ConfigCommand::Id(label)  => open_config.id(&label).parse(),
                         ConfigCommand::ChildGap(gap)  => open_config.child_gap(*gap).parse(),
                         ConfigCommand::ChildAlignmentXLeft  => open_config.align_children_x_left().parse(),
