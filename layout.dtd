@@ -296,8 +296,6 @@
 
 <!ELEMENT image EMPTY>
 <!ATTLIST image src CDATA #REQUIRED>
-<!ATTLIST image src-width CDATA #REQUIRED>
-<!ATTLIST image src-height CDATA #REQUIRED>
 
 <!ELEMENT font-id EMPTY>
 <!ATTLIST font-id is CDATA #REQUIRED>
