@@ -170,9 +170,9 @@ pub enum ConfigCommand{
     BorderRight(f32),
     BorderBetweenChildren(f32),
 
-    Scroll{vertical: bool, horizontal: bool},
+    Clip{vertical: bool, horizontal: bool},
 
-    Image{name: String, width: f32, height: f32},
+    Image{name: String},
 
     Floating,
     FloatingOffset{x:f32,y:f32},
@@ -814,19 +814,15 @@ where
                                 Some(value) => bool::from_str(&value).unwrap()
                             };
     
-                            self.config_command(ConfigCommand::Scroll{vertical, horizontal});
+                            self.config_command(ConfigCommand::Clip{vertical, horizontal});
                         }
                         b"image" => {
                             let name = e.cdata("src");
-                            let width = try_parse::<f32>("src-width", &mut e);
-                            let height = try_parse::<f32>("src-height", &mut e);
 
-                            if name.is_some() && width.is_some() && height.is_some() {
+                            if name.is_some() {
                                 let name = name.unwrap();
-                                let width = width.unwrap();
-                                let height = height.unwrap();
 
-                                self.config_command(ConfigCommand::Image { name, width, height });
+                                self.config_command(ConfigCommand::Image { name });
                             }
                         }
                         // todo:
@@ -1562,23 +1558,26 @@ where
                         ConfigCommand::BorderLeft(border)  => open_config.border_left(*border as u16).parse(),
                         ConfigCommand::BorderRight(border)  => open_config.border_right(*border as u16).parse(),
                         ConfigCommand::BorderBetweenChildren(border)  => open_config.border_between_children(*border as u16).parse(),
-                        ConfigCommand::Scroll { vertical, horizontal } => open_config.scroll(*vertical, *horizontal).parse(),
-                        ConfigCommand::Image { name, width, height } => {
+                        ConfigCommand::Clip { vertical, horizontal } => {
+                            let child_offset = layout_engine.get_scroll_offset();
+                            open_config.scroll(*vertical, *horizontal, child_offset).parse()
+                        }
+                        ConfigCommand::Image { name } => {
                             match locals {
                                 None => match user_app.get_image(name, &list_data) {
                                     None => {},
-                                    Some(image) => open_config.image(image, *width, *height).parse(),
+                                    Some(image) => open_config.image(image).parse(),
                                 }
                                 Some(locals) =>  match locals.get(name) {
                                     None => match user_app.get_image(name, &list_data) {
                                         None => {},
-                                        Some(image) => open_config.image(image, *width, *height).parse(),
+                                        Some(image) => open_config.image(image).parse(),
                                     }
                                     Some(data_command) => {
                                         match data_command {
                                             PageDataCommand::GetImage { local:_, from } =>  match user_app.get_image(from, &list_data) {
                                                 None => {},
-                                                Some(image) => open_config.image(image, *width, *height).parse(),
+                                                Some(image) => open_config.image(image).parse(),
                                             }
                                             _ => {},
                                         }

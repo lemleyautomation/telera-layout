@@ -300,8 +300,8 @@ impl ElementConfiguration{
         self.decleration.border.width.betweenChildren = width;
         self
     }
-    pub fn scroll(&mut self, vertical: bool, horizontal: bool) -> &mut Self {
-        self.decleration.scroll = Clay_ScrollElementConfig { horizontal, vertical };
+    pub fn scroll(&mut self, vertical: bool, horizontal: bool, child_offset: Clay_Vector2) -> &mut Self {
+        self.decleration.clip = Clay_ClipElementConfig { horizontal, vertical, childOffset: child_offset };
         self
     }
     pub fn floating(&mut self) -> &mut Self {
@@ -406,9 +406,8 @@ impl ElementConfiguration{
         self.decleration.floating.attachTo = Clay_FloatingAttachToElement::CLAY_ATTACH_TO_ROOT;
         self
     }
-    pub fn image<'render_pass, ImageElementData>(&mut self, image: &'render_pass ImageElementData, width: f32, height:f32) -> &mut Self {
+    pub fn image<'render_pass, ImageElementData>(&mut self, image: &'render_pass ImageElementData) -> &mut Self {
         self.decleration.image.imageData = image as *const ImageElementData as *mut c_void;
-        self.decleration.image.sourceDimensions = Clay_Dimensions {width, height };
         self
     }
     pub fn custom_element<'render_pass, CustomElementData>(&mut self, custom_element_data: &'render_pass CustomElementData) -> &mut Self{

@@ -215,6 +215,12 @@ impl<TextRenderer: MeasureText, ImageElementData: Debug + Default, CustomElement
         }
     }
 
+    pub fn get_scroll_offset(&self) -> Clay_Vector2{
+        unsafe {
+            return Clay_GetScrollOffset()
+        }
+    }
+
     pub fn scroll_container_data(&self, id: Clay_ElementId) -> Option<Clay_ScrollContainerData> {
         unsafe {
             Clay_SetCurrentContext(self.context);

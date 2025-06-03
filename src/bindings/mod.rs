@@ -296,7 +296,7 @@ impl<'render_pass, ImageElementData, CustomLayoutSettings> From<&Clay_RenderComm
             z_index: value.zIndex, 
             custom_layout_settings: unsafe { Some(&*value.userData.cast()) },
             background_color: unsafe { value.renderData.image.backgroundColor.into() }, 
-            dimensions: unsafe {value.renderData.image.sourceDimensions.into() }, 
+            dimensions: Vec2 { x: 0.0, y: 0.0 }, 
             data: unsafe { &*value.renderData.image.imageData.cast() }
         }
     }

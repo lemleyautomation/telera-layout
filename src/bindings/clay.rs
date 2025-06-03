@@ -2022,6 +2022,33 @@ impl Default for Clay_ElementId {
     }
 }
 #[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct Clay_ElementIdArray {
+    pub capacity: i32,
+    pub length: i32,
+    pub internalArray: *mut Clay_ElementId,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of Clay_ElementIdArray"][::std::mem::size_of::<Clay_ElementIdArray>() - 16usize];
+    ["Alignment of Clay_ElementIdArray"][::std::mem::align_of::<Clay_ElementIdArray>() - 8usize];
+    ["Offset of field: Clay_ElementIdArray::capacity"]
+        [::std::mem::offset_of!(Clay_ElementIdArray, capacity) - 0usize];
+    ["Offset of field: Clay_ElementIdArray::length"]
+        [::std::mem::offset_of!(Clay_ElementIdArray, length) - 4usize];
+    ["Offset of field: Clay_ElementIdArray::internalArray"]
+        [::std::mem::offset_of!(Clay_ElementIdArray, internalArray) - 8usize];
+};
+impl Default for Clay_ElementIdArray {
+    fn default() -> Self {
+        let mut s = ::std::mem::MaybeUninit::<Self>::uninit();
+        unsafe {
+            ::std::ptr::write_bytes(s.as_mut_ptr(), 0, 1);
+            s.assume_init()
+        }
+    }
+}
+#[repr(C)]
 #[derive(Debug, Default, Copy, Clone)]
 pub struct Clay_CornerRadius {
     pub topLeft: f32,
@@ -2353,20 +2380,45 @@ impl Default for Clay__Clay_TextElementConfigWrapper {
     }
 }
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct Clay_ImageElementConfig {
-    pub imageData: *mut ::std::os::raw::c_void,
-    pub sourceDimensions: Clay_Dimensions,
+#[derive(Debug, Default, Copy, Clone)]
+pub struct Clay_AspectRatioElementConfig {
+    pub aspectRatio: f32,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of Clay_ImageElementConfig"][::std::mem::size_of::<Clay_ImageElementConfig>() - 16usize];
+    ["Size of Clay_AspectRatioElementConfig"]
+        [::std::mem::size_of::<Clay_AspectRatioElementConfig>() - 4usize];
+    ["Alignment of Clay_AspectRatioElementConfig"]
+        [::std::mem::align_of::<Clay_AspectRatioElementConfig>() - 4usize];
+    ["Offset of field: Clay_AspectRatioElementConfig::aspectRatio"]
+        [::std::mem::offset_of!(Clay_AspectRatioElementConfig, aspectRatio) - 0usize];
+};
+#[repr(C)]
+#[derive(Debug, Default, Copy, Clone)]
+pub struct Clay__Clay_AspectRatioElementConfigWrapper {
+    pub wrapped: Clay_AspectRatioElementConfig,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of Clay__Clay_AspectRatioElementConfigWrapper"]
+        [::std::mem::size_of::<Clay__Clay_AspectRatioElementConfigWrapper>() - 4usize];
+    ["Alignment of Clay__Clay_AspectRatioElementConfigWrapper"]
+        [::std::mem::align_of::<Clay__Clay_AspectRatioElementConfigWrapper>() - 4usize];
+    ["Offset of field: Clay__Clay_AspectRatioElementConfigWrapper::wrapped"]
+        [::std::mem::offset_of!(Clay__Clay_AspectRatioElementConfigWrapper, wrapped) - 0usize];
+};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct Clay_ImageElementConfig {
+    pub imageData: *mut ::std::os::raw::c_void,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of Clay_ImageElementConfig"][::std::mem::size_of::<Clay_ImageElementConfig>() - 8usize];
     ["Alignment of Clay_ImageElementConfig"]
         [::std::mem::align_of::<Clay_ImageElementConfig>() - 8usize];
     ["Offset of field: Clay_ImageElementConfig::imageData"]
         [::std::mem::offset_of!(Clay_ImageElementConfig, imageData) - 0usize];
-    ["Offset of field: Clay_ImageElementConfig::sourceDimensions"]
-        [::std::mem::offset_of!(Clay_ImageElementConfig, sourceDimensions) - 8usize];
 };
 impl Default for Clay_ImageElementConfig {
     fn default() -> Self {
@@ -2385,7 +2437,7 @@ pub struct Clay__Clay_ImageElementConfigWrapper {
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
     ["Size of Clay__Clay_ImageElementConfigWrapper"]
-        [::std::mem::size_of::<Clay__Clay_ImageElementConfigWrapper>() - 16usize];
+        [::std::mem::size_of::<Clay__Clay_ImageElementConfigWrapper>() - 8usize];
     ["Alignment of Clay__Clay_ImageElementConfigWrapper"]
         [::std::mem::align_of::<Clay__Clay_ImageElementConfigWrapper>() - 8usize];
     ["Offset of field: Clay__Clay_ImageElementConfigWrapper::wrapped"]
@@ -2453,6 +2505,12 @@ pub enum Clay_FloatingAttachToElement {
     CLAY_ATTACH_TO_ELEMENT_WITH_ID = 2,
     CLAY_ATTACH_TO_ROOT = 3,
 }
+#[repr(i32)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+pub enum Clay_FloatingClipToElement {
+    CLAY_CLIP_TO_NONE = 0,
+    CLAY_CLIP_TO_ATTACHED_PARENT = 1,
+}
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct Clay_FloatingElementConfig {
@@ -2463,11 +2521,12 @@ pub struct Clay_FloatingElementConfig {
     pub attachPoints: Clay_FloatingAttachPoints,
     pub pointerCaptureMode: Clay_PointerCaptureMode,
     pub attachTo: Clay_FloatingAttachToElement,
+    pub clipTo: Clay_FloatingClipToElement,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
     ["Size of Clay_FloatingElementConfig"]
-        [::std::mem::size_of::<Clay_FloatingElementConfig>() - 40usize];
+        [::std::mem::size_of::<Clay_FloatingElementConfig>() - 44usize];
     ["Alignment of Clay_FloatingElementConfig"]
         [::std::mem::align_of::<Clay_FloatingElementConfig>() - 4usize];
     ["Offset of field: Clay_FloatingElementConfig::offset"]
@@ -2484,6 +2543,8 @@ const _: () = {
         [::std::mem::offset_of!(Clay_FloatingElementConfig, pointerCaptureMode) - 32usize];
     ["Offset of field: Clay_FloatingElementConfig::attachTo"]
         [::std::mem::offset_of!(Clay_FloatingElementConfig, attachTo) - 36usize];
+    ["Offset of field: Clay_FloatingElementConfig::clipTo"]
+        [::std::mem::offset_of!(Clay_FloatingElementConfig, clipTo) - 40usize];
 };
 impl Default for Clay_FloatingElementConfig {
     fn default() -> Self {
@@ -2502,7 +2563,7 @@ pub struct Clay__Clay_FloatingElementConfigWrapper {
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
     ["Size of Clay__Clay_FloatingElementConfigWrapper"]
-        [::std::mem::size_of::<Clay__Clay_FloatingElementConfigWrapper>() - 40usize];
+        [::std::mem::size_of::<Clay__Clay_FloatingElementConfigWrapper>() - 44usize];
     ["Alignment of Clay__Clay_FloatingElementConfigWrapper"]
         [::std::mem::align_of::<Clay__Clay_FloatingElementConfigWrapper>() - 4usize];
     ["Offset of field: Clay__Clay_FloatingElementConfigWrapper::wrapped"]
@@ -2565,34 +2626,36 @@ impl Default for Clay__Clay_CustomElementConfigWrapper {
 }
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone)]
-pub struct Clay_ScrollElementConfig {
+pub struct Clay_ClipElementConfig {
     pub horizontal: bool,
     pub vertical: bool,
+    pub childOffset: Clay_Vector2,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of Clay_ScrollElementConfig"]
-        [::std::mem::size_of::<Clay_ScrollElementConfig>() - 2usize];
-    ["Alignment of Clay_ScrollElementConfig"]
-        [::std::mem::align_of::<Clay_ScrollElementConfig>() - 1usize];
-    ["Offset of field: Clay_ScrollElementConfig::horizontal"]
-        [::std::mem::offset_of!(Clay_ScrollElementConfig, horizontal) - 0usize];
-    ["Offset of field: Clay_ScrollElementConfig::vertical"]
-        [::std::mem::offset_of!(Clay_ScrollElementConfig, vertical) - 1usize];
+    ["Size of Clay_ClipElementConfig"][::std::mem::size_of::<Clay_ClipElementConfig>() - 12usize];
+    ["Alignment of Clay_ClipElementConfig"]
+        [::std::mem::align_of::<Clay_ClipElementConfig>() - 4usize];
+    ["Offset of field: Clay_ClipElementConfig::horizontal"]
+        [::std::mem::offset_of!(Clay_ClipElementConfig, horizontal) - 0usize];
+    ["Offset of field: Clay_ClipElementConfig::vertical"]
+        [::std::mem::offset_of!(Clay_ClipElementConfig, vertical) - 1usize];
+    ["Offset of field: Clay_ClipElementConfig::childOffset"]
+        [::std::mem::offset_of!(Clay_ClipElementConfig, childOffset) - 4usize];
 };
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone)]
-pub struct Clay__Clay_ScrollElementConfigWrapper {
-    pub wrapped: Clay_ScrollElementConfig,
+pub struct Clay__Clay_ClipElementConfigWrapper {
+    pub wrapped: Clay_ClipElementConfig,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of Clay__Clay_ScrollElementConfigWrapper"]
-        [::std::mem::size_of::<Clay__Clay_ScrollElementConfigWrapper>() - 2usize];
-    ["Alignment of Clay__Clay_ScrollElementConfigWrapper"]
-        [::std::mem::align_of::<Clay__Clay_ScrollElementConfigWrapper>() - 1usize];
-    ["Offset of field: Clay__Clay_ScrollElementConfigWrapper::wrapped"]
-        [::std::mem::offset_of!(Clay__Clay_ScrollElementConfigWrapper, wrapped) - 0usize];
+    ["Size of Clay__Clay_ClipElementConfigWrapper"]
+        [::std::mem::size_of::<Clay__Clay_ClipElementConfigWrapper>() - 12usize];
+    ["Alignment of Clay__Clay_ClipElementConfigWrapper"]
+        [::std::mem::align_of::<Clay__Clay_ClipElementConfigWrapper>() - 4usize];
+    ["Offset of field: Clay__Clay_ClipElementConfigWrapper::wrapped"]
+        [::std::mem::offset_of!(Clay__Clay_ClipElementConfigWrapper, wrapped) - 0usize];
 };
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone)]
@@ -2707,21 +2770,18 @@ const _: () = {
 pub struct Clay_ImageRenderData {
     pub backgroundColor: Clay_Color,
     pub cornerRadius: Clay_CornerRadius,
-    pub sourceDimensions: Clay_Dimensions,
     pub imageData: *mut ::std::os::raw::c_void,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of Clay_ImageRenderData"][::std::mem::size_of::<Clay_ImageRenderData>() - 48usize];
+    ["Size of Clay_ImageRenderData"][::std::mem::size_of::<Clay_ImageRenderData>() - 40usize];
     ["Alignment of Clay_ImageRenderData"][::std::mem::align_of::<Clay_ImageRenderData>() - 8usize];
     ["Offset of field: Clay_ImageRenderData::backgroundColor"]
         [::std::mem::offset_of!(Clay_ImageRenderData, backgroundColor) - 0usize];
     ["Offset of field: Clay_ImageRenderData::cornerRadius"]
         [::std::mem::offset_of!(Clay_ImageRenderData, cornerRadius) - 16usize];
-    ["Offset of field: Clay_ImageRenderData::sourceDimensions"]
-        [::std::mem::offset_of!(Clay_ImageRenderData, sourceDimensions) - 32usize];
     ["Offset of field: Clay_ImageRenderData::imageData"]
-        [::std::mem::offset_of!(Clay_ImageRenderData, imageData) - 40usize];
+        [::std::mem::offset_of!(Clay_ImageRenderData, imageData) - 32usize];
 };
 impl Default for Clay_ImageRenderData {
     fn default() -> Self {
@@ -2776,6 +2836,7 @@ const _: () = {
     ["Offset of field: Clay_ScrollRenderData::vertical"]
         [::std::mem::offset_of!(Clay_ScrollRenderData, vertical) - 1usize];
 };
+pub type Clay_ClipRenderData = Clay_ScrollRenderData;
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone)]
 pub struct Clay_BorderRenderData {
@@ -2803,7 +2864,7 @@ pub union Clay_RenderData {
     pub image: Clay_ImageRenderData,
     pub custom: Clay_CustomRenderData,
     pub border: Clay_BorderRenderData,
-    pub scroll: Clay_ScrollRenderData,
+    pub clip: Clay_ClipRenderData,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
@@ -2819,8 +2880,8 @@ const _: () = {
         [::std::mem::offset_of!(Clay_RenderData, custom) - 0usize];
     ["Offset of field: Clay_RenderData::border"]
         [::std::mem::offset_of!(Clay_RenderData, border) - 0usize];
-    ["Offset of field: Clay_RenderData::scroll"]
-        [::std::mem::offset_of!(Clay_RenderData, scroll) - 0usize];
+    ["Offset of field: Clay_RenderData::clip"]
+        [::std::mem::offset_of!(Clay_RenderData, clip) - 0usize];
 };
 impl Default for Clay_RenderData {
     fn default() -> Self {
@@ -2837,13 +2898,13 @@ pub struct Clay_ScrollContainerData {
     pub scrollPosition: *mut Clay_Vector2,
     pub scrollContainerDimensions: Clay_Dimensions,
     pub contentDimensions: Clay_Dimensions,
-    pub config: Clay_ScrollElementConfig,
+    pub config: Clay_ClipElementConfig,
     pub found: bool,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
     ["Size of Clay_ScrollContainerData"]
-        [::std::mem::size_of::<Clay_ScrollContainerData>() - 32usize];
+        [::std::mem::size_of::<Clay_ScrollContainerData>() - 40usize];
     ["Alignment of Clay_ScrollContainerData"]
         [::std::mem::align_of::<Clay_ScrollContainerData>() - 8usize];
     ["Offset of field: Clay_ScrollContainerData::scrollPosition"]
@@ -2855,7 +2916,7 @@ const _: () = {
     ["Offset of field: Clay_ScrollContainerData::config"]
         [::std::mem::offset_of!(Clay_ScrollContainerData, config) - 24usize];
     ["Offset of field: Clay_ScrollContainerData::found"]
-        [::std::mem::offset_of!(Clay_ScrollContainerData, found) - 26usize];
+        [::std::mem::offset_of!(Clay_ScrollContainerData, found) - 36usize];
 };
 impl Default for Clay_ScrollContainerData {
     fn default() -> Self {
@@ -2996,17 +3057,18 @@ pub struct Clay_ElementDeclaration {
     pub layout: Clay_LayoutConfig,
     pub backgroundColor: Clay_Color,
     pub cornerRadius: Clay_CornerRadius,
+    pub aspectRatio: Clay_AspectRatioElementConfig,
     pub image: Clay_ImageElementConfig,
     pub floating: Clay_FloatingElementConfig,
     pub custom: Clay_CustomElementConfig,
-    pub scroll: Clay_ScrollElementConfig,
+    pub clip: Clay_ClipElementConfig,
     pub border: Clay_BorderElementConfig,
     pub userData: *mut ::std::os::raw::c_void,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
     ["Size of Clay_ElementDeclaration"]
-        [::std::mem::size_of::<Clay_ElementDeclaration>() - 216usize];
+        [::std::mem::size_of::<Clay_ElementDeclaration>() - 232usize];
     ["Alignment of Clay_ElementDeclaration"]
         [::std::mem::align_of::<Clay_ElementDeclaration>() - 8usize];
     ["Offset of field: Clay_ElementDeclaration::id"]
@@ -3017,18 +3079,20 @@ const _: () = {
         [::std::mem::offset_of!(Clay_ElementDeclaration, backgroundColor) - 80usize];
     ["Offset of field: Clay_ElementDeclaration::cornerRadius"]
         [::std::mem::offset_of!(Clay_ElementDeclaration, cornerRadius) - 96usize];
+    ["Offset of field: Clay_ElementDeclaration::aspectRatio"]
+        [::std::mem::offset_of!(Clay_ElementDeclaration, aspectRatio) - 112usize];
     ["Offset of field: Clay_ElementDeclaration::image"]
-        [::std::mem::offset_of!(Clay_ElementDeclaration, image) - 112usize];
+        [::std::mem::offset_of!(Clay_ElementDeclaration, image) - 120usize];
     ["Offset of field: Clay_ElementDeclaration::floating"]
         [::std::mem::offset_of!(Clay_ElementDeclaration, floating) - 128usize];
     ["Offset of field: Clay_ElementDeclaration::custom"]
-        [::std::mem::offset_of!(Clay_ElementDeclaration, custom) - 168usize];
-    ["Offset of field: Clay_ElementDeclaration::scroll"]
-        [::std::mem::offset_of!(Clay_ElementDeclaration, scroll) - 176usize];
+        [::std::mem::offset_of!(Clay_ElementDeclaration, custom) - 176usize];
+    ["Offset of field: Clay_ElementDeclaration::clip"]
+        [::std::mem::offset_of!(Clay_ElementDeclaration, clip) - 184usize];
     ["Offset of field: Clay_ElementDeclaration::border"]
-        [::std::mem::offset_of!(Clay_ElementDeclaration, border) - 180usize];
+        [::std::mem::offset_of!(Clay_ElementDeclaration, border) - 196usize];
     ["Offset of field: Clay_ElementDeclaration::userData"]
-        [::std::mem::offset_of!(Clay_ElementDeclaration, userData) - 208usize];
+        [::std::mem::offset_of!(Clay_ElementDeclaration, userData) - 224usize];
 };
 impl Default for Clay_ElementDeclaration {
     fn default() -> Self {
@@ -3047,7 +3111,7 @@ pub struct Clay__Clay_ElementDeclarationWrapper {
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
     ["Size of Clay__Clay_ElementDeclarationWrapper"]
-        [::std::mem::size_of::<Clay__Clay_ElementDeclarationWrapper>() - 216usize];
+        [::std::mem::size_of::<Clay__Clay_ElementDeclarationWrapper>() - 232usize];
     ["Alignment of Clay__Clay_ElementDeclarationWrapper"]
         [::std::mem::align_of::<Clay__Clay_ElementDeclarationWrapper>() - 8usize];
     ["Offset of field: Clay__Clay_ElementDeclarationWrapper::wrapped"]
@@ -3159,6 +3223,9 @@ unsafe extern "C" {
     );
 }
 unsafe extern "C" {
+    pub fn Clay_GetScrollOffset() -> Clay_Vector2;
+}
+unsafe extern "C" {
     pub fn Clay_SetLayoutDimensions(dimensions: Clay_Dimensions);
 }
 unsafe extern "C" {
@@ -3193,6 +3260,9 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     pub fn Clay_PointerOver(elementId: Clay_ElementId) -> bool;
+}
+unsafe extern "C" {
+    pub fn Clay_GetPointerOverIds() -> Clay_ElementIdArray;
 }
 unsafe extern "C" {
     pub fn Clay_GetScrollContainerData(id: Clay_ElementId) -> Clay_ScrollContainerData;
