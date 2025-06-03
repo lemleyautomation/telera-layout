@@ -12,7 +12,6 @@ pub use strum;
 pub use strum_macros::Display;
 pub use strum_macros::EnumString;
 
-use crate::bindings::false_;
 use crate::{Color, ElementConfiguration, LayoutEngine, MeasureText, TextConfig};
 
 #[derive(Debug, Display)]
@@ -174,6 +173,32 @@ pub enum ConfigCommand{
     Scroll{vertical: bool, horizontal: bool},
 
     Image{name: String, width: f32, height: f32},
+
+    Floating,
+    FloatingOffset{x:f32,y:f32},
+    FloatingDimensions{width:f32,height:f32},
+    FloatingZIndex{z:i16},
+    FloatingAttatchToParentAtTopLeft,
+    FloatingAttatchToParentAtCenterLeft,
+    FloatingAttatchToParentAtBottomLeft,
+    FloatingAttatchToParentAtTopCenter,
+    FloatingAttatchToParentAtCenter,
+    FloatingAttatchToParentAtBottomCenter,
+    FloatingAttatchToParentAtTopRight,
+    FloatingAttatchToParentAtCenterRight,
+    FloatingAttatchToParentAtBottomRight,
+    FloatingAttatchElementAtTopLeft,
+    FloatingAttatchElementAtCenterLeft,
+    FloatingAttatchElementAtBottomLeft,
+    FloatingAttatchElementAtTopCenter,
+    FloatingAttatchElementAtCenter,
+    FloatingAttatchElementAtBottomCenter,
+    FloatingAttatchElementAtTopRight,
+    FloatingAttatchElementAtCenterRight,
+    FloatingAttatchElementAtBottomRight,
+    FloatingPointerPassThrough,
+    FloatingAttachElementToElement{other_element_id:String},
+    FloatingAttachElementToRoot,
 
     // todo:
     // floating elements
@@ -337,6 +362,7 @@ fn dyn_or_stat<'a>(e: &'a mut BytesStart) -> Result<ValueRef, ParserError>{
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 struct XMLPage<Event>
 where
     Event: Clone+Debug+PartialEq+FromStr,
@@ -804,10 +830,122 @@ where
                             }
                         }
                         // todo:
-                        // - image
                         // - custom element
-                        // - floating
                         // - custom layout
+                        b"floating" => {
+                            self.config_command(ConfigCommand::Floating);
+                        }
+                        b"floating-offset" => {
+                            let (x, x_exists) = parse::<f32>("x", &mut e);
+                            let (y, y_exists) = parse::<f32>("y", &mut e);
+                            if x_exists && y_exists {
+                                self.config_command(ConfigCommand::FloatingOffset { x, y });
+                            }
+                        }
+                        b"floating-size" => {
+                            let (width, width_exists) = parse::<f32>("width", &mut e);
+                            let (height, height_exists) = parse::<f32>("height", &mut e);
+                            if width_exists && height_exists {
+                                self.config_command(ConfigCommand::FloatingDimensions { width, height });
+                            }
+                        }
+                        b"floating-z-index" => {
+                            let (z, z_exists) = parse::<i16>("z", &mut e);
+                            if z_exists {
+                                self.config_command(ConfigCommand::FloatingZIndex { z });
+                            }
+                        }
+                        b"floating-attach-to-parent" => {
+                            if e.cdata("top-left").is_some() {
+                                self.config_command(ConfigCommand::FloatingAttatchToParentAtTopLeft);
+                                continue
+                            }
+                            if e.cdata("center-left").is_some() {
+                                self.config_command(ConfigCommand::FloatingAttatchToParentAtCenterLeft);
+                                continue
+                            }
+                            if e.cdata("bottom-left").is_some() {
+                                self.config_command(ConfigCommand::FloatingAttatchToParentAtBottomLeft);
+                                continue
+                            }
+                            if e.cdata("top-center").is_some() {
+                                self.config_command(ConfigCommand::FloatingAttatchToParentAtTopCenter);
+                                continue
+                            }
+                            if e.cdata("center").is_some() {
+                                self.config_command(ConfigCommand::FloatingAttatchToParentAtCenter);
+                                continue
+                            }
+                            if e.cdata("bottom-center").is_some() {
+                                self.config_command(ConfigCommand::FloatingAttatchToParentAtBottomCenter);
+                                continue
+                            }
+                            if e.cdata("top-right").is_some() {
+                                self.config_command(ConfigCommand::FloatingAttatchToParentAtTopRight);
+                                continue
+                            }
+                            if e.cdata("center-right").is_some() {
+                                self.config_command(ConfigCommand::FloatingAttatchToParentAtCenterRight);
+                                continue
+                            }
+                            if e.cdata("bottom-right").is_some() {
+                                self.config_command(ConfigCommand::FloatingAttatchToParentAtBottomRight);
+                                continue
+                            }
+                        }
+                        b"floating-attach-element" => {
+                            if e.cdata("top-left").is_some() {
+                                self.config_command(ConfigCommand::FloatingAttatchElementAtTopLeft);
+                                continue
+                            }
+                            if e.cdata("center-left").is_some() {
+                                self.config_command(ConfigCommand::FloatingAttatchElementAtCenterLeft);
+                                continue
+                            }
+                            if e.cdata("bottom-left").is_some() {
+                                self.config_command(ConfigCommand::FloatingAttatchElementAtBottomLeft);
+                                continue
+                            }
+                            if e.cdata("top-center").is_some() {
+                                self.config_command(ConfigCommand::FloatingAttatchElementAtTopCenter);
+                                continue
+                            }
+                            if e.cdata("center").is_some() {
+                                self.config_command(ConfigCommand::FloatingAttatchElementAtCenter);
+                                continue
+                            }
+                            if e.cdata("bottom-center").is_some() {
+                                self.config_command(ConfigCommand::FloatingAttatchElementAtBottomCenter);
+                                continue
+                            }
+                            if e.cdata("top-right").is_some() {
+                                self.config_command(ConfigCommand::FloatingAttatchElementAtTopRight);
+                                continue
+                            }
+                            if e.cdata("center-right").is_some() {
+                                self.config_command(ConfigCommand::FloatingAttatchElementAtCenterRight);
+                                continue
+                            }
+                            if e.cdata("bottom-right").is_some() {
+                                self.config_command(ConfigCommand::FloatingAttatchElementAtBottomRight);
+                                continue
+                            }
+                        }
+                        b"floating-capture-pointer" => {
+                            let (state, state_exists) = parse::<bool>("state", &mut e);
+                            if state_exists && !state {
+                                self.config_command(ConfigCommand::FloatingPointerPassThrough);
+                            }
+                        }
+                        b"floating-attach-to-element" => {
+                            let (other_element_id, exists) = parse::<String>("id", &mut e);
+                            if exists {
+                                self.config_command(ConfigCommand::FloatingAttachElementToElement { other_element_id });
+                            }
+                        }
+                        b"floating-attach-to-root" => {
+                            self.config_command(ConfigCommand::FloatingAttachElementToRoot);
+                        }
                         b"font-id" => match try_parse::<u16>("is", &mut e) {
                             None => return Err(ParserError::RequiredAttributeValueMissing),
                             Some(id) => self.text_config(TextConfigCommand::FontId(id)),
@@ -1448,6 +1586,34 @@ where
                                 }
                             }
                         }
+                        ConfigCommand::Floating => open_config.floating().parse(),
+                        ConfigCommand::FloatingOffset { x, y } => open_config.floating_offset(*x, *y).parse(),
+                        ConfigCommand::FloatingDimensions { width, height } => open_config.floating_dimensions(*width, *height).parse(),
+                        ConfigCommand::FloatingZIndex { z } => open_config.floating_z_index(*z).parse(),
+                        ConfigCommand::FloatingAttatchToParentAtTopLeft => open_config.floating_attach_to_parent_at_top_left().parse(),
+                        ConfigCommand::FloatingAttatchToParentAtCenterLeft => open_config.floating_attach_to_parent_at_center_left().parse(),
+                        ConfigCommand::FloatingAttatchToParentAtBottomLeft => open_config.floating_attach_to_parent_at_bottom_left().parse(),
+                        ConfigCommand::FloatingAttatchToParentAtTopCenter => open_config.floating_attach_to_parent_at_top_center().parse(),
+                        ConfigCommand::FloatingAttatchToParentAtCenter => open_config.floating_attach_to_parent_at_center().parse(),
+                        ConfigCommand::FloatingAttatchToParentAtBottomCenter => open_config.floating_attach_to_parent_at_bottom_center().parse(),
+                        ConfigCommand::FloatingAttatchToParentAtTopRight => open_config.floating_attach_to_parent_at_top_right().parse(),
+                        ConfigCommand::FloatingAttatchToParentAtCenterRight => open_config.floating_attach_to_parent_at_center_right().parse(),
+                        ConfigCommand::FloatingAttatchToParentAtBottomRight => open_config.floating_attach_to_parent_at_bottom_right().parse(),
+                        ConfigCommand::FloatingAttatchElementAtTopLeft => open_config.floating_attach_element_at_top_left().parse(),
+                        ConfigCommand::FloatingAttatchElementAtCenterLeft => open_config.floating_attach_element_at_center_left().parse(),
+                        ConfigCommand::FloatingAttatchElementAtBottomLeft => open_config.floating_attach_element_at_bottom_left().parse(),
+                        ConfigCommand::FloatingAttatchElementAtTopCenter => open_config.floating_attach_element_at_top_center().parse(),
+                        ConfigCommand::FloatingAttatchElementAtCenter => open_config.floating_attach_element_at_center().parse(),
+                        ConfigCommand::FloatingAttatchElementAtBottomCenter => open_config.floating_attach_element_at_bottom_center().parse(),
+                        ConfigCommand::FloatingAttatchElementAtTopRight => open_config.floating_attach_element_at_top_right().parse(),
+                        ConfigCommand::FloatingAttatchElementAtCenterRight => open_config.floating_attach_element_at_center_right().parse(),
+                        ConfigCommand::FloatingAttatchElementAtBottomRight => open_config.floating_attach_element_at_bottom_right().parse(),
+                        ConfigCommand::FloatingPointerPassThrough => open_config.floating_pointer_pass_through().parse(),
+                        ConfigCommand::FloatingAttachElementToElement { other_element_id:_ } => {
+                            //let id = layout_engine.get_id(other_element_id);
+                            open_config.floating_attach_to_element(0).parse()
+                        }
+                        ConfigCommand::FloatingAttachElementToRoot => open_config.floating_attach_to_root().parse(),
                     }
                 }
             }
@@ -1459,7 +1625,7 @@ where
                         TextConfigCommand::AlignLeft => text_config.alignment_left().parse(),
                         TextConfigCommand::AlignRight => text_config.alignment_right().parse(),
                         TextConfigCommand::Color(color) => text_config.color(*color).parse(),
-                        TextConfigCommand::Editable(state) => (),
+                        TextConfigCommand::Editable(_state) => (),
                         TextConfigCommand::Content(content) => text_content = Some(content),
                         TextConfigCommand::DefaultText(_default) => {}
                         TextConfigCommand::DynamicContent(name) => {

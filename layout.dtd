@@ -273,15 +273,15 @@
 <!ATTLIST floating-z-index z CDATA #REQUIRED>
 
 <!ELEMENT floating-attach-to-parent EMPTY>
-<!ATTLIST floating-attach at (
-    top_left|center-left|bottom-left|
+<!ATTLIST floating-attach-to-parent at (
+    top-left|center-left|bottom-left|
     top-center|center|bottom-center|
     top-right|center-right|bottom-right
 ) #REQUIRED>
 
 <!ELEMENT floating-attach-element EMPTY>
 <!ATTLIST floating-attach-element at (
-    top_left|center-left|bottom-left|
+    top-left|center-left|bottom-left|
     top-center|center|bottom-center|
     top-right|center-right|bottom-right
 ) #REQUIRED>

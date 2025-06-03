@@ -305,8 +305,8 @@ impl ElementConfiguration{
         self
     }
     pub fn floating(&mut self) -> &mut Self {
-        self.decleration.floating.attachTo = Clay_FloatingAttachToElement::CLAY_ATTACH_TO_PARENT;
         self.decleration.floating = Clay_FloatingElementConfig::default();
+        self.decleration.floating.attachTo = Clay_FloatingAttachToElement::CLAY_ATTACH_TO_PARENT;
         self
     }
     pub fn floating_offset(&mut self, x:f32, y:f32) -> &mut Self{
