@@ -221,6 +221,18 @@ impl<TextRenderer: MeasureText, ImageElementData: Debug + Default, CustomElement
         }
     }
 
+    pub fn get_element_id(&self, id: &str) -> Clay_ElementId {
+        unsafe {
+            Clay_GetElementId(
+                Clay_String { 
+                    isStaticallyAllocated: false,
+                    length: id.len() as i32, 
+                    chars: id.as_ptr() as *const i8
+                }
+            )
+        }
+    }
+
     pub fn scroll_container_data(&self, id: Clay_ElementId) -> Option<Clay_ScrollContainerData> {
         unsafe {
             Clay_SetCurrentContext(self.context);
