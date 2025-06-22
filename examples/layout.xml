@@ -6,7 +6,7 @@
 <page name="Main">
     <reusable name="layout expand">
         <element-config>
-            <width-grow />
+            <width-grow min="2" />
             <height-grow />
         </element-config>
     </reusable>
