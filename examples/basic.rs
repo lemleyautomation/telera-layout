@@ -43,7 +43,7 @@ fn main(){
         .x_grow()
         .y_grow()
         .padding_all(5)
-        .color(Color::default())
+        .color(Color{r:5.0,g:7.0,b:9.0,a:255.0})
         .end();
     layout.configure_element(&config);
 

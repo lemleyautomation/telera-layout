@@ -239,7 +239,7 @@ impl<'render_pass, CustomLayoutSettings> From<&Clay_RenderCommand> for Rectangle
             bounding_box: value.boundingBox.into(), 
             id: value.id, 
             z_index: value.zIndex,
-            custom_layout_settings: unsafe { Some(&*value.userData.cast()) },
+            custom_layout_settings: unsafe {value.userData.cast::<CustomLayoutSettings>().as_ref()},
             color: unsafe { value.renderData.rectangle.backgroundColor.into() }, 
             corner_radii: unsafe { value.renderData.rectangle.cornerRadius.into() }
         }
@@ -252,7 +252,7 @@ impl<'render_pass, CustomLayoutSettings> From<&Clay_RenderCommand> for Border<'r
             bounding_box: value.boundingBox.into(), 
             id: value.id, 
             z_index: value.zIndex, 
-            custom_layout_settings: unsafe { Some(&*value.userData.cast()) },
+            custom_layout_settings: unsafe {value.userData.cast::<CustomLayoutSettings>().as_ref()},
             color: unsafe { value.renderData.border.color.into() }, 
             corner_radii: unsafe { value.renderData.border.cornerRadius.into() }, 
             width: unsafe { value.renderData.border.width.into() } 
@@ -266,7 +266,7 @@ impl<'render_pass, CustomLayoutSettings> From<&Clay_RenderCommand> for Text<'ren
             bounding_box: value.boundingBox.into(), 
             id: value.id, 
             z_index: value.zIndex,
-            custom_layout_settings: unsafe { Some(&*value.userData.cast()) },
+            custom_layout_settings: unsafe {value.userData.cast::<CustomLayoutSettings>().as_ref()},
             text: unsafe {
                 core::str::from_utf8_unchecked(core::slice::from_raw_parts(
                     value.renderData.text.stringContents.chars as *const u8,
@@ -294,7 +294,7 @@ impl<'render_pass, ImageElementData, CustomLayoutSettings> From<&Clay_RenderComm
             bounding_box: value.boundingBox.into(), 
             id: value.id, 
             z_index: value.zIndex, 
-            custom_layout_settings: unsafe { Some(&*value.userData.cast()) },
+            custom_layout_settings: unsafe {value.userData.cast::<CustomLayoutSettings>().as_ref()},
             background_color: unsafe { value.renderData.image.backgroundColor.into() }, 
             dimensions: Vec2 { x: 0.0, y: 0.0 }, 
             data: unsafe { &*value.renderData.image.imageData.cast() }
@@ -308,7 +308,7 @@ impl<CustomElementData, CustomLayoutSettings> From<&Clay_RenderCommand> for Cust
             bounding_box: value.boundingBox.into(), 
             id: value.id, 
             z_index: value.zIndex,
-            custom_layout_settings: unsafe { Some(&*value.userData.cast()) },
+            custom_layout_settings: unsafe {value.userData.cast::<CustomLayoutSettings>().as_ref()},
             background_color: unsafe { value.renderData.custom.backgroundColor.into() }, 
             corner_radii: unsafe { value.renderData.custom.cornerRadius.into() }, 
             data: unsafe { &*value.renderData.custom.customData.cast() },
