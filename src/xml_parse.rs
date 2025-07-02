@@ -446,7 +446,10 @@ where
                         }
                         b"page" => match e.cdata("name") {
                             None => return Err(ParserError::UnNamedPage),
-                            Some(name) => self.current_page_name = Page::from_str(&name).unwrap()
+                            Some(name) => {
+                                println!("page: {:?}", &name);
+                                self.current_page_name = Page::from_str(&name).unwrap();
+                            }
                         }
                         b"element" => {
                             if let Some(condition) = e.cdata("if") {
@@ -1526,7 +1529,7 @@ where
                         }
                         ConfigCommand::RadiusAll(radius)  => open_config.radius_all(*radius).parse(),
                         ConfigCommand::RadiusTopLeft(radius)  => open_config.radius_top_left(*radius).parse(),
-                        ConfigCommand::RadiusTopRight(radius)  => open_config.radius_bottom_right(*radius).parse(),
+                        ConfigCommand::RadiusTopRight(radius)  => open_config.radius_top_right(*radius).parse(),
                         ConfigCommand::RadiusBottomRight(radius)  => open_config.radius_bottom_right(*radius).parse(),
                         ConfigCommand::RadiusBottomLeft(radius)  => open_config.radius_bottom_left(*radius).parse(),
                         ConfigCommand::BorderColor(color) => open_config.border_color(*color).parse(),

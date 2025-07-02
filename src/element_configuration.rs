@@ -269,7 +269,7 @@ impl ElementConfiguration{
         self
     }
     pub fn radius_bottom_right(&mut self, radius: f32) -> &mut Self {
-        self.decleration.cornerRadius.bottomLeft = radius;
+        self.decleration.cornerRadius.bottomRight = radius;
         self
     }
     pub fn border_color(&mut self, color: Color) -> &mut Self {
