@@ -24,7 +24,12 @@ use std::{
 };
 
 unsafe extern "C" fn error_handler(error_data: Clay_ErrorData) {
-    panic!("Clay Error: (type: {:?}) {:?}", error_data.errorType, error_data.errorText);
+    let text = core::str::from_utf8_unchecked(core::slice::from_raw_parts(
+        error_data.errorText.chars as *const u8,
+        error_data.errorText.length as _,
+    ));
+
+    panic!("Clay Error: (type: {:?}) {:?}", error_data.errorType, text);
 }
 
 
@@ -171,6 +176,8 @@ impl<TextRenderer: MeasureText, ImageElementData: Debug + Default, CustomElement
         self.check_for_dangling_elements();
 
         unsafe {
+            // #[cfg(feature="parse_logger")]
+            // println!("closing element");
             Clay__CloseElement();
         }
     }

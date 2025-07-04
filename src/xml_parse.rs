@@ -1,4 +1,6 @@
+use std::fs::OpenOptions;
 use std::hash::Hash;
+use std::io::Write;
 use std::{collections::HashMap, fmt::Debug, str::FromStr};
 
 use csscolorparser;
@@ -1080,6 +1082,8 @@ where
                 command_references.push(command);
             }
             set_layout(clicked, &mut events, &command_references, &self.reusable, None, None, &mut None, &mut None, layout_engine, user_app);
+            #[cfg(feature="parse_logger")]
+            println!("Page set");
         }
         events
     }
@@ -1124,10 +1128,6 @@ where
 
     let mut collect_list_commands = false;
     
-    // let mut config = match append_config.is_some() {
-    //     false => None::<ElementConfiguration>,
-    //     true => *append_config
-    // };
     let mut config = None::<ElementConfiguration>;
     
     let mut text_config = match append_text_config.is_some() {
@@ -1138,9 +1138,18 @@ where
     let mut text_content = None::<&String>;
     let mut dynamic_text_content = None::<&'render_pass str>;
 
-    for command in commands.iter() {
+    #[cfg(feature="parse_logger")]
+    let mut file = OpenOptions::new()
+        .create(true) // Create the file if it doesn't exist
+        .append(true) // Open in append mode
+        .open("logs.csv").unwrap();
+    #[cfg(feature="parse_logger")]
+    let _ = file.write_all(format!("layout command number,layout command,skip active,nesting level,comments\n").as_bytes());
+
+    for (index, command) in commands.iter().enumerate() {
         #[cfg(feature="parse_logger")]
-        println!("skip active: {:?}, {:?}", &skip, command);
+        let _ = file.write_all(format!("{:?}/{:?},{:?},{:?},{:?}\n", index, commands.len(), command, &skip, nesting_level).as_bytes());
+
         if collect_list_commands {
             match command {
                 LayoutCommandType::FlowControl(flow_command) if *flow_command == FlowControlCommand::ListClosed => collect_list_commands = false,
@@ -1234,8 +1243,8 @@ where
 
                         if let Some(skip_level) = skip {
                             #[cfg(feature="parse_logger")]
-                            println!("trying to close skip: {:?}, {:?}", skip_level, nesting_level);
-                            if skip_level <= nesting_level{
+                            let _ = file.write_all(format!(",,,,trying to close skip: {:?}\n",(skip_level <= nesting_level)).as_bytes());
+                            if skip_level >= nesting_level{
                                 skip = None;
                             }
                         }
@@ -1631,8 +1640,8 @@ where
                         TextConfigCommand::Content(content) => text_content = Some(content),
                         TextConfigCommand::DefaultText(_default) => {}
                         TextConfigCommand::DynamicContent(name) => {
-                            #[cfg(feature="parse_logger")]
-                            println!("-------------------Command: Dynamic Text Content. Name: {:?}", name);
+                            // #[cfg(feature="parse_logger")]
+                            // println!("-------------------Command: Dynamic Text Content. Name: {:?}", name);
                             match locals {
                                 None => match user_app.get_text(name, &list_data) {
                                     None => {
@@ -1650,8 +1659,8 @@ where
                                         Some(text) => dynamic_text_content = Some(text),
                                     }
                                     Some(data_command) => {
-                                        #[cfg(feature="parse_logger")]
-                                        println!("trying to get dynamic text: {:?}", name);
+                                        // #[cfg(feature="parse_logger")]
+                                        // println!("trying to get dynamic text: {:?}", name);
                                         match data_command {
                                             PageDataCommand::SetText { local:_, to } => {
                                                 dynamic_text_content = Some(to);
@@ -1683,4 +1692,7 @@ where
             }
         }
     }
+
+    // #[cfg(feature="parse_logger")]
+    
 }
