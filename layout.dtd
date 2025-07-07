@@ -203,7 +203,7 @@
 <!ATTLIST child-gap is CDATA #REQUIRED>
 
 <!ELEMENT direction EMPTY>
-<!ATTLIST direction is (rtl|ttb) "rtl">
+<!ATTLIST direction is (rtl|ttb) #REQUIRED>
 
 <!ELEMENT align-children-x EMPTY>
 <!ATTLIST align-children-x to (left|right|center) #REQUIRED>

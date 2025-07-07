@@ -16,9 +16,6 @@ pub use text_configuration::MeasureText;
 mod element_configuration;
 pub use element_configuration::ElementConfiguration;
 
-mod xml_parse;
-pub use xml_parse::*;
-
 use std::{
     cell::RefCell, fmt::Debug, marker::PhantomData, os::raw::c_void, rc::Rc
 };

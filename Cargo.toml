@@ -4,10 +4,6 @@ version = "0.9.0"
 edition = "2021"
 
 [dependencies]
-strum = { version = "0.27.1", features = ["derive"] }
-strum_macros = "0.27"
-quick-xml = "0.37.3"
-csscolorparser = { version = "0.7.0", features = [ "named-colors" ] }
 
 [build-dependencies]
 bindgen = "0.71.1"
