@@ -226,7 +226,7 @@ impl<TextRenderer: MeasureText, ImageElementData: Debug + Default, CustomElement
     }
 
     pub fn get_element_id(&self, id: &str) -> Clay_ElementId {
-        unsafe {
+        let id = unsafe {
             Clay_GetElementId(
                 Clay_String { 
                     isStaticallyAllocated: false,
@@ -234,7 +234,9 @@ impl<TextRenderer: MeasureText, ImageElementData: Debug + Default, CustomElement
                     chars: id.as_ptr() as *const i8
                 }
             )
-        }
+        };
+
+        id
     }
 
     pub fn scroll_container_data(&self, id: Clay_ElementId) -> Option<Clay_ScrollContainerData> {
