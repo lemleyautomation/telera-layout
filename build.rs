@@ -5,8 +5,7 @@ fn main() {
     let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap();
     let target_arch = std::env::var("CARGO_CFG_TARGET_ARCH").unwrap();
 
-    //std::fs::write("bindgenlog.txt", target_arch).unwrap();
-
+    //std::fs::write("bindgenlog.txt", target_arch.clone()).unwrap();
 
     println!("cargo:rerun-if-changed=src/bindings/clay.h");
 
@@ -25,6 +24,8 @@ fn main() {
             .generate()
             .expect("Couldn't generate bindings!")
             .write_to_file(std::path::PathBuf::from("src/bindings/clay.rs")).expect("Couldn't write bindings!");
+
+        std::fs::write("bindgenlog.txt", target_arch.clone()).unwrap();
     } else {
         if target_arch == "aarch64" {
             cc::Build::new()

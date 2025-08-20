@@ -860,6 +860,8 @@ CLAY_DLL_EXPORT Clay_RenderCommandArray Clay_EndLayout(void);
 // Calculates a hash ID from the given idString.
 // Generally only used for dynamic strings when CLAY_ID("stringLiteral") can't be used.
 CLAY_DLL_EXPORT Clay_ElementId Clay_GetElementId(Clay_String idString);
+
+CLAY_DLL_EXPORT uint32_t Clay_GetOpenElementId();
 // Calculates a hash ID from the given idString and index.
 // - index is used to avoid constructing dynamic ID strings in loops.
 // Generally only used for dynamic strings when CLAY_IDI("stringLiteral", index) can't be used.
@@ -4209,6 +4211,13 @@ Clay_RenderCommandArray Clay_EndLayout(void) {
 CLAY_WASM_EXPORT("Clay_GetElementId")
 Clay_ElementId Clay_GetElementId(Clay_String idString) {
     return Clay__HashString(idString, 0, 0);
+}
+
+CLAY_WASM_EXPORT("Clay_GetOpenElementId")
+uint32_t Clay_GetOpenElementId() {
+    Clay_Context* context = Clay_GetCurrentContext();
+    Clay_LayoutElement *openLayoutElement = Clay__GetOpenLayoutElement();
+    return openLayoutElement->id;
 }
 
 CLAY_WASM_EXPORT("Clay_GetElementIdWithIndex")

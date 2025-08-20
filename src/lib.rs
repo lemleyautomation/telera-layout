@@ -179,10 +179,11 @@ impl<TextRenderer: MeasureText, ImageElementData: Debug + Default, CustomElement
         }
     }
 
-    pub fn configure_element<'render_pass>(&mut self, config: &ElementConfiguration){
+    pub fn configure_element<'render_pass>(&mut self, config: &ElementConfiguration) -> u32 {
         self.undangle();
         unsafe {
             Clay__ConfigureOpenElement(config.into());
+            Clay_GetOpenElementId()
         }
     }
     

@@ -3238,9 +3238,6 @@ unsafe extern "C" {
     pub fn Clay_GetElementId(idString: Clay_String) -> Clay_ElementId;
 }
 unsafe extern "C" {
-    pub fn Clay_GetOpenElementId() -> u32;
-}
-unsafe extern "C" {
     pub fn Clay_GetElementIdWithIndex(idString: Clay_String, index: u32) -> Clay_ElementId;
 }
 unsafe extern "C" {

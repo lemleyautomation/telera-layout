@@ -45,7 +45,7 @@ fn main(){
         .padding_all(5)
         .color(Color{r:5.0,g:7.0,b:9.0,a:255.0})
         .end();
-    layout.configure_element(&config);
+    println!("{:?}", layout.configure_element(&config));
 
     let text_config = TextConfig::new()
         .font_id(0)
@@ -78,7 +78,7 @@ fn main(){
         .y_fixed(50.0)
         .color(Color::default())
         .end();
-    layout.configure_element(&config);
+    println!("{:?}", layout.configure_element(&config));
     layout.close_element();
 
     layout.close_element();
