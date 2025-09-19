@@ -6,6 +6,9 @@
 
 mod clay;
 
+use std::str::FromStr;
+use csscolorparser;
+
 pub use clay::*;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -14,6 +17,16 @@ pub struct Color{
     pub g: f32,
     pub b: f32,
     pub a: f32,
+}
+
+impl FromStr for Color {
+    type Err = csscolorparser::ParseColorError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match csscolorparser::parse(s) {
+            Ok(color) => Ok(color.to_rgba8().into()),
+            Err(e) => Err(e)
+        }
+    }
 }
 
 impl Default for Color {
