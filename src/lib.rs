@@ -303,3 +303,230 @@ macro_rules! element {
         
     };
 }
+
+
+#[cfg(test)]
+mod tests {
+    #[allow(dead_code)]
+    #[derive(Debug,Default)]
+    enum Shapes {
+        Line{width:f32},
+        #[default]
+        Circle
+    }
+
+    #[allow(dead_code)]
+    #[derive(Debug, Default)]
+    struct LayoutRenderer{
+        pub mt: crate::Vec2,
+        s: String
+    }
+
+    impl crate::MeasureText for LayoutRenderer {
+        fn measure_text(&mut self, _text: &str, _text_config: crate::TextConfig) -> crate::Vec2 {
+            crate::Vec2 { x: 20.0, y: 12.0 }    
+        }
+    }
+
+    impl LayoutRenderer {
+        pub fn new() -> Self {
+            Self { mt: crate::Vec2 { x: 30.0, y: 30.0 }, s: "what's up".to_string() }
+        }
+    }
+
+    #[test]
+    fn initialization() {
+        let mut layout_renderer = LayoutRenderer::new();
+
+        layout_renderer.mt = crate::Vec2 {x:20.0, y:12.0};
+
+        let mut layout = crate::LayoutEngine::<LayoutRenderer, (),Shapes,()>::new((500.0,500.0));
+        //layout.set_text_measurement(None, measure_text);
+
+        layout.begin_layout(layout_renderer);
+
+        layout.open_element();
+
+        let config = crate::ElementConfiguration::new()
+            .id("popup")
+            .x_fixed(200.0)
+            .y_fixed(200.0)
+            .color(crate::Color{r:0.0,g:255.0,b:0.0,a:255.0})
+            .padding_all(25)
+            .border_all(2)
+            .radius_all(20.0)
+            .floating()
+            .floating_attach_element_at_center()
+            .floating_attach_to_parent_at_center()
+            .end();
+        layout.configure_element(&config);
+
+        layout.open_element();
+        let config = crate::ElementConfiguration::new()
+            .color(crate::Color{r:0.0,g:0.0,b:0.0,a:255.0})
+            .x_grow()
+            .y_grow()
+            .custom_element(&Shapes::Line { width: 4.7 })
+            .end();
+        layout.configure_element(&config);
+        layout.close_element();
+
+        layout.close_element();
+
+        let (_render_commands, layout_renderer) = layout.end_layout();
+
+        // Define an acceptable tolerance
+        let epsilon: f32 = f32::EPSILON * 10.0;
+
+        // Assert that the difference is within tolerance
+        assert!(
+            (layout_renderer.mt.x - 20.0).abs() < epsilon,
+            "Values are not approximately equal: a = {}, b = {}",
+            layout_renderer.mt.x,
+            30.0
+        );
+        
+
+    }
+
+    #[test]
+    fn end_to_end_layout_renderer_pointer(){
+        // let mut layout_renderer = LayoutRenderer::new();
+
+        // layout_renderer.mt = crate::Vec2 {x:20.0, y:12.0};
+
+        // let mut layout = crate::LayoutEngine::<LayoutRenderer, (),(),()>::new((500.0,500.0));
+        
+        // layout.begin_layout(layout_renderer);
+
+        // layout.open_element();
+
+        // let config = crate::ElementConfiguration::new()
+        //     .id("hi")
+        //     .x_grow()
+        //     .y_grow()
+        //     .padding_all(5)
+        //     .color(crate::Color{r:5.0,g:7.0,b:9.0,a:255.0})
+        //     .end();
+        // layout.configure_element(&config);
+
+        // let text_config = crate::TextConfig::new()
+        //     .font_id(0)
+        //     .color(crate::Color::default())
+        //     .font_size(12)
+        //     .line_height(14)
+        //     .end();
+        // layout.add_text_element("hi1", &text_config, true);
+
+        // let text_config = crate::TextConfig::new()
+        //     .font_id(0)
+        //     .color(crate::Color::default())
+        //     .font_size(12)
+        //     .line_height(14)
+        //     .end();
+        // layout.add_text_element("hi2", &text_config, true);
+
+        // let text_config = crate::TextConfig::new()
+        //     .font_id(0)
+        //     .color(crate::Color::default())
+        //     .font_size(12)
+        //     .line_height(14)
+        //     .end();
+        // layout.add_text_element("hi3", &text_config, true);
+
+        // layout.open_element();
+        // let config = crate::ElementConfiguration::new()
+        //     .id("test")
+        //     .x_fixed(50.0)
+        //     .y_fixed(50.0)
+        //     .color(crate::Color::default())
+        //     .end();
+        // layout.configure_element(&config);
+        // layout.close_element();
+
+        // layout.open_element();
+        // let config = crate::ElementConfiguration::new()
+        //     .x_grow()
+        //     .y_grow()
+        //     .color(crate::Color::default())
+        //     .end();
+        // layout.configure_element(&config);
+        // layout.close_element();
+
+        // layout.close_element();
+
+        // let (_render_commands, layout_renderer) = layout.end_layout();
+
+        // // Define an acceptable tolerance
+        // let epsilon: f32 = f32::EPSILON * 10.0;
+
+        // // Assert that the difference is within tolerance
+        // assert!(
+        //     (layout_renderer.mt.x - 20.0).abs() < epsilon,
+        //     "Values are not approximately equal: a = {}, b = {}",
+        //     layout_renderer.mt.x,
+        //     20.0
+        // );
+        // assert!(
+        //     (layout_renderer.mt.y - 12.0).abs() < epsilon,
+        //     "Values are not approximately equal: a = {}, b = {}",
+        //     layout_renderer.mt.y,
+        //     12.0
+        // );
+    }
+
+    #[test]
+    fn end_to_end_custom_element() {
+        let mut layout_renderer = LayoutRenderer::new();
+
+        layout_renderer.mt = crate::Vec2 {x:20.0, y:12.0};
+
+        let mut layout = crate::LayoutEngine::<LayoutRenderer, (),Shapes,()>::new((500.0,500.0));
+        //layout.set_text_measurement(None, measure_text);
+
+        layout.begin_layout(layout_renderer);
+
+        layout.open_element();
+
+        let config = crate::ElementConfiguration::new()
+            .id("popup")
+            .x_fixed(200.0)
+            .y_fixed(200.0)
+            .color(crate::Color{r:0.0,g:255.0,b:0.0,a:255.0})
+            .padding_all(25)
+            .border_all(2)
+            .radius_all(20.0)
+            .floating()
+            .floating_attach_element_at_center()
+            .floating_attach_to_parent_at_center()
+            .end();
+        layout.configure_element(&config);
+
+        layout.open_element();
+        let config = crate::ElementConfiguration::new()
+            .color(crate::Color{r:0.0,g:0.0,b:0.0,a:255.0})
+            .x_grow()
+            .y_grow()
+            .custom_element(&Shapes::Line { width: 4.7 })
+            .end();
+        layout.configure_element(&config);
+        layout.close_element();
+
+        layout.close_element();
+
+        let (_render_commands, layout_renderer) = layout.end_layout();
+
+        // Define an acceptable tolerance
+        let epsilon: f32 = f32::EPSILON * 10.0;
+
+        // Assert that the difference is within tolerance
+        assert!(
+            (layout_renderer.mt.x - 20.0).abs() < epsilon,
+            "Values are not approximately equal: a = {}, b = {}",
+            layout_renderer.mt.x,
+            30.0
+        );
+        
+
+    }
+}
