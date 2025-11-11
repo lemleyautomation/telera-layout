@@ -40,7 +40,7 @@ pub struct LayoutEngine<Renderer: MeasureText, ImageElementData: Debug, CustomEl
 }
 
 
-impl<TextRenderer: MeasureText, ImageElementData: Debug + Default, CustomElementData: Debug + Default, CustomLayoutSettings> LayoutEngine<TextRenderer, ImageElementData, CustomElementData, CustomLayoutSettings> {
+impl<TextRenderer: MeasureText, ImageElementData: Debug, CustomElementData: Debug, CustomLayoutSettings> LayoutEngine<TextRenderer, ImageElementData, CustomElementData, CustomLayoutSettings> {
     pub fn new(dimensions: (f32,f32)) -> Self{
         let memory_size = unsafe { Clay_MinMemorySize() as usize };
         let memory = vec![0; memory_size];
@@ -279,6 +279,18 @@ impl<TextRenderer: MeasureText, ImageElementData: Debug + Default, CustomElement
             Some(element_data.boundingBox.into())
         } else {
             None
+        }
+    }
+}
+
+impl<TextRenderer: MeasureText, ImageElementData: Debug, CustomElementData: Debug, CustomLayoutSettings> Drop for LayoutEngine<TextRenderer, ImageElementData, CustomElementData, CustomLayoutSettings> {
+    fn drop(&mut self) {
+        unsafe {
+            if let Some(ptr) = self.text_measure_callback {
+                let _ = Box::from_raw(ptr as *mut (usize, usize));
+            }
+
+            Clay_SetCurrentContext(core::ptr::null_mut() as _);
         }
     }
 }
