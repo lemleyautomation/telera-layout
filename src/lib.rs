@@ -21,12 +21,14 @@ use std::{
 };
 
 unsafe extern "C" fn error_handler(error_data: Clay_ErrorData) {
-    let text = core::str::from_utf8_unchecked(core::slice::from_raw_parts(
-        error_data.errorText.chars as *const u8,
-        error_data.errorText.length as _,
-    ));
+    unsafe {
+            let text = core::str::from_utf8_unchecked(core::slice::from_raw_parts(
+            error_data.errorText.chars as *const u8,
+            error_data.errorText.length as _,
+        ));
 
-    panic!("Clay Error: (type: {:?}) {:?}", error_data.errorType, text);
+        panic!("Clay Error: (type: {:?}) {:?}", error_data.errorType, text);
+    }
 }
 
 
@@ -286,10 +288,6 @@ impl<TextRenderer: MeasureText, ImageElementData: Debug, CustomElementData: Debu
 impl<TextRenderer: MeasureText, ImageElementData: Debug, CustomElementData: Debug, CustomLayoutSettings> Drop for LayoutEngine<TextRenderer, ImageElementData, CustomElementData, CustomLayoutSettings> {
     fn drop(&mut self) {
         unsafe {
-            if let Some(ptr) = self.text_measure_callback {
-                let _ = Box::from_raw(ptr as *mut (usize, usize));
-            }
-
             Clay_SetCurrentContext(core::ptr::null_mut() as _);
         }
     }
@@ -307,6 +305,16 @@ macro_rules! element {
 
 #[cfg(test)]
 mod tests {
+    fn assert_f32(a: f32, b: f32) {
+        let epsilon: f32 = f32::EPSILON;
+        assert!(
+            (a - b).abs() < epsilon,
+            "Values are not approximately equal: a = {}, b = {}",
+            a,
+            b
+        );
+    }
+
     #[allow(dead_code)]
     #[derive(Debug,Default)]
     enum Shapes {
@@ -335,179 +343,75 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn initialization() {
-        let mut layout_renderer = LayoutRenderer::new();
-
-        layout_renderer.mt = crate::Vec2 {x:20.0, y:12.0};
-
-        let mut layout = crate::LayoutEngine::<LayoutRenderer, (),Shapes,()>::new((500.0,500.0));
-        //layout.set_text_measurement(None, measure_text);
-
+        let layout_renderer = LayoutRenderer::new();
+        let mut layout = crate::LayoutEngine::<LayoutRenderer, (),(),()>::new((500.0,500.0));
         layout.begin_layout(layout_renderer);
-
-        layout.open_element();
-
-        let config = crate::ElementConfiguration::new()
-            .id("popup")
-            .x_fixed(200.0)
-            .y_fixed(200.0)
-            .color(crate::Color{r:0.0,g:255.0,b:0.0,a:255.0})
-            .padding_all(25)
-            .border_all(2)
-            .radius_all(20.0)
-            .floating()
-            .floating_attach_element_at_center()
-            .floating_attach_to_parent_at_center()
-            .end();
-        layout.configure_element(&config);
-
-        layout.open_element();
-        let config = crate::ElementConfiguration::new()
-            .color(crate::Color{r:0.0,g:0.0,b:0.0,a:255.0})
-            .x_grow()
-            .y_grow()
-            .custom_element(&Shapes::Line { width: 4.7 })
-            .end();
-        layout.configure_element(&config);
-        layout.close_element();
-
-        layout.close_element();
-
-        let (_render_commands, layout_renderer) = layout.end_layout();
-
-        // Define an acceptable tolerance
-        let epsilon: f32 = f32::EPSILON * 10.0;
-
-        // Assert that the difference is within tolerance
-        assert!(
-            (layout_renderer.mt.x - 20.0).abs() < epsilon,
-            "Values are not approximately equal: a = {}, b = {}",
-            layout_renderer.mt.x,
-            30.0
-        );
-        
-
+        layout.end_layout();
     }
 
     #[test]
+    #[serial_test::serial]
     fn end_to_end_layout_renderer_pointer(){
-        // let mut layout_renderer = LayoutRenderer::new();
-
-        // layout_renderer.mt = crate::Vec2 {x:20.0, y:12.0};
-
-        // let mut layout = crate::LayoutEngine::<LayoutRenderer, (),(),()>::new((500.0,500.0));
-        
-        // layout.begin_layout(layout_renderer);
-
-        // layout.open_element();
-
-        // let config = crate::ElementConfiguration::new()
-        //     .id("hi")
-        //     .x_grow()
-        //     .y_grow()
-        //     .padding_all(5)
-        //     .color(crate::Color{r:5.0,g:7.0,b:9.0,a:255.0})
-        //     .end();
-        // layout.configure_element(&config);
-
-        // let text_config = crate::TextConfig::new()
-        //     .font_id(0)
-        //     .color(crate::Color::default())
-        //     .font_size(12)
-        //     .line_height(14)
-        //     .end();
-        // layout.add_text_element("hi1", &text_config, true);
-
-        // let text_config = crate::TextConfig::new()
-        //     .font_id(0)
-        //     .color(crate::Color::default())
-        //     .font_size(12)
-        //     .line_height(14)
-        //     .end();
-        // layout.add_text_element("hi2", &text_config, true);
-
-        // let text_config = crate::TextConfig::new()
-        //     .font_id(0)
-        //     .color(crate::Color::default())
-        //     .font_size(12)
-        //     .line_height(14)
-        //     .end();
-        // layout.add_text_element("hi3", &text_config, true);
-
-        // layout.open_element();
-        // let config = crate::ElementConfiguration::new()
-        //     .id("test")
-        //     .x_fixed(50.0)
-        //     .y_fixed(50.0)
-        //     .color(crate::Color::default())
-        //     .end();
-        // layout.configure_element(&config);
-        // layout.close_element();
-
-        // layout.open_element();
-        // let config = crate::ElementConfiguration::new()
-        //     .x_grow()
-        //     .y_grow()
-        //     .color(crate::Color::default())
-        //     .end();
-        // layout.configure_element(&config);
-        // layout.close_element();
-
-        // layout.close_element();
-
-        // let (_render_commands, layout_renderer) = layout.end_layout();
-
-        // // Define an acceptable tolerance
-        // let epsilon: f32 = f32::EPSILON * 10.0;
-
-        // // Assert that the difference is within tolerance
-        // assert!(
-        //     (layout_renderer.mt.x - 20.0).abs() < epsilon,
-        //     "Values are not approximately equal: a = {}, b = {}",
-        //     layout_renderer.mt.x,
-        //     20.0
-        // );
-        // assert!(
-        //     (layout_renderer.mt.y - 12.0).abs() < epsilon,
-        //     "Values are not approximately equal: a = {}, b = {}",
-        //     layout_renderer.mt.y,
-        //     12.0
-        // );
-    }
-
-    #[test]
-    fn end_to_end_custom_element() {
         let mut layout_renderer = LayoutRenderer::new();
 
         layout_renderer.mt = crate::Vec2 {x:20.0, y:12.0};
 
-        let mut layout = crate::LayoutEngine::<LayoutRenderer, (),Shapes,()>::new((500.0,500.0));
-        //layout.set_text_measurement(None, measure_text);
-
+        let mut layout = crate::LayoutEngine::<LayoutRenderer, (),(),()>::new((500.0,500.0));
+        
         layout.begin_layout(layout_renderer);
 
         layout.open_element();
 
         let config = crate::ElementConfiguration::new()
-            .id("popup")
-            .x_fixed(200.0)
-            .y_fixed(200.0)
-            .color(crate::Color{r:0.0,g:255.0,b:0.0,a:255.0})
-            .padding_all(25)
-            .border_all(2)
-            .radius_all(20.0)
-            .floating()
-            .floating_attach_element_at_center()
-            .floating_attach_to_parent_at_center()
+            .id("hi")
+            .x_grow()
+            .y_grow()
+            .padding_all(5)
+            .color(crate::Color{r:5.0,g:7.0,b:9.0,a:255.0})
             .end();
         layout.configure_element(&config);
 
+        let text_config = crate::TextConfig::new()
+            .font_id(0)
+            .color(crate::Color::default())
+            .font_size(12)
+            .line_height(14)
+            .end();
+        layout.add_text_element("hi1", &text_config, true);
+
+        let text_config = crate::TextConfig::new()
+            .font_id(0)
+            .color(crate::Color::default())
+            .font_size(12)
+            .line_height(14)
+            .end();
+        layout.add_text_element("hi2", &text_config, true);
+
+        let text_config = crate::TextConfig::new()
+            .font_id(0)
+            .color(crate::Color::default())
+            .font_size(12)
+            .line_height(14)
+            .end();
+        layout.add_text_element("hi3", &text_config, true);
+
         layout.open_element();
         let config = crate::ElementConfiguration::new()
-            .color(crate::Color{r:0.0,g:0.0,b:0.0,a:255.0})
+            .id("test")
+            .x_fixed(50.0)
+            .y_fixed(50.0)
+            .color(crate::Color::default())
+            .end();
+        layout.configure_element(&config);
+        layout.close_element();
+
+        layout.open_element();
+        let config = crate::ElementConfiguration::new()
             .x_grow()
             .y_grow()
-            .custom_element(&Shapes::Line { width: 4.7 })
+            .color(crate::Color::default())
             .end();
         layout.configure_element(&config);
         layout.close_element();
@@ -524,9 +428,88 @@ mod tests {
             (layout_renderer.mt.x - 20.0).abs() < epsilon,
             "Values are not approximately equal: a = {}, b = {}",
             layout_renderer.mt.x,
-            30.0
+            20.0
         );
-        
+        assert!(
+            (layout_renderer.mt.y - 12.0).abs() < epsilon,
+            "Values are not approximately equal: a = {}, b = {}",
+            layout_renderer.mt.y,
+            12.0
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn end_to_end_custom_element() {
+        let layout_renderer = LayoutRenderer::new();
+        let mut layout = crate::LayoutEngine::<LayoutRenderer, (),Shapes,()>::new((500.0,500.0));
+        layout.begin_layout(layout_renderer);
+
+        layout.open_element();
+        let config = crate::ElementConfiguration::new()
+            .id("popup")
+            .x_fixed(200.0)
+            .y_fixed(200.0)
+            .color(crate::Color{r:0.0,g:255.0,b:0.0,a:255.0})
+            .padding_all(25)
+            .border_all(2)
+            .radius_all(20.0)
+            .floating()
+            .floating_attach_element_at_center()
+            .floating_attach_to_parent_at_center()
+            .end();
+        layout.configure_element(&config);
+        layout.open_element();
+        let config = crate::ElementConfiguration::new()
+            .color(crate::Color{r:0.0,g:0.0,b:0.0,a:255.0})
+            .x_grow()
+            .y_grow()
+            .custom_element(&Shapes::Line { width: 4.7 })
+            .end();
+        layout.configure_element(&config);
+        layout.close_element();
+        layout.close_element();
+
+        let (render_commands, _layout_renderer) = layout.end_layout();
+
+        assert_eq!(render_commands.len(),3);
+
+        if let crate::RenderCommand::Rectangle(rectangle) = &render_commands[0] {
+            assert_f32(rectangle.bounding_box.x, 150.00000);
+            assert_f32(rectangle.bounding_box.y, 150.0);
+            assert_f32(rectangle.bounding_box.width, 200.00000);
+            assert_f32(rectangle.bounding_box.height, 200.00000);
+        }
+        else {
+            panic!("Problem with Render Command: Rectangle")
+        }
+
+        if let crate::RenderCommand::Custom(custom) = &render_commands[1] {
+            assert_f32(custom.bounding_box.x, 175.00000);
+            assert_f32(custom.bounding_box.y, 175.00000);
+            assert_f32(custom.bounding_box.width, 150.00000);
+            assert_f32(custom.bounding_box.height, 150.00000);
+
+            if let Shapes::Line { width } = custom.data {
+                assert_f32(*width, 4.70000);
+            }
+            else {
+                panic!("custom data invalid")
+            }
+        }             
+        else {
+            panic!("Problem with Render Command: Custom")
+        }
+
+        if let crate::RenderCommand::Border(border) = &render_commands[2] {
+            assert_f32(border.bounding_box.x, 150.00000);
+            assert_f32(border.bounding_box.y, 150.00000);
+            assert_f32(border.bounding_box.width, 200.00000);
+            assert_f32(border.bounding_box.height, 200.00000);
+        }
+        else {
+            panic!("Problem with Render Command: Border")
+        }
 
     }
 }

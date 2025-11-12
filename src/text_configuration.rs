@@ -156,15 +156,17 @@ pub unsafe extern "C" fn measure_text_c_callback<'a, T>(
 where
     T: 'a + MeasureText,
 {
-    let text = core::str::from_utf8_unchecked(core::slice::from_raw_parts(
-        text_slice.chars as *const u8,
-        text_slice.length as _,
-    ));
-    
-    let text_config = TextConfig::from(*config);
+    unsafe {
+        let text = core::str::from_utf8_unchecked(core::slice::from_raw_parts(
+            text_slice.chars as *const u8,
+            text_slice.length as _,
+        ));
+        
+        let text_config = TextConfig::from(*config);
 
-    let renderer = Rc::from_raw(user_data as *mut RefCell<T>);
-    Rc::increment_strong_count(user_data);
-    let mut renderer_ref = renderer.borrow_mut();
-    renderer_ref.measure_text(text, text_config).into()
+        let renderer = Rc::from_raw(user_data as *mut RefCell<T>);
+        Rc::increment_strong_count(user_data);
+        let mut renderer_ref = renderer.borrow_mut();
+        renderer_ref.measure_text(text, text_config).into()
+    }
 }
