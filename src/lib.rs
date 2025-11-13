@@ -135,7 +135,7 @@ impl<TextRenderer: MeasureText, ImageElementData: Debug, CustomElementData: Debu
 
     pub fn end_layout<'render_pass>(&mut self) -> (Vec<RenderCommand::<'render_pass, ImageElementData, CustomElementData, CustomLayoutSettings>>, TextRenderer) {
         assert!(
-            self.dangling_element_count != 0 || self.dangling_element_count%2 != 0,
+            self.dangling_element_count == 0 && self.dangling_element_count%2 == 0,
             "All elements must have a Configuration!"
         );
 
@@ -172,7 +172,7 @@ impl<TextRenderer: MeasureText, ImageElementData: Debug, CustomElementData: Debu
 
     pub fn close_element(&mut self){
         assert!(
-            self.dangling_element_count != 0 || self.dangling_element_count%2 != 0,
+            self.dangling_element_count == 0 && self.dangling_element_count%2 == 0,
             "All elements must have a Configuration!"
         );
 
@@ -191,7 +191,7 @@ impl<TextRenderer: MeasureText, ImageElementData: Debug, CustomElementData: Debu
     
     pub fn add_text_element<'render_pass>(&mut self, content: &'render_pass str, config: &'render_pass TextConfig, statically_allicated: bool){
         assert!(
-            self.dangling_element_count != 0 || self.dangling_element_count%2 != 0,
+            self.dangling_element_count == 0 && self.dangling_element_count%2 == 0,
             "All elements must have a Configuration!"
         );
 
