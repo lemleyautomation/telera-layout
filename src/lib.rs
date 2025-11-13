@@ -22,12 +22,14 @@ use std::{
 
 unsafe extern "C" fn error_handler(error_data: Clay_ErrorData) {
     unsafe {
-            let text = core::str::from_utf8_unchecked(core::slice::from_raw_parts(
+        let text = core::str::from_utf8_unchecked(
+            core::slice::from_raw_parts(
             error_data.errorText.chars as *const u8,
             error_data.errorText.length as _,
-        ));
+            )
+        );
 
-        panic!("Clay Error: (type: {:?}) {:?}", error_data.errorType, text);
+        println!("Clay Error: (type: {:?}) {:?}", error_data.errorType, text);
     }
 }
 
@@ -82,12 +84,6 @@ impl<TextRenderer: MeasureText, ImageElementData: Debug, CustomElementData: Debu
         }
     }
 
-    fn check_for_dangling_elements(&self){
-        if self.dangling_element_count != 0 || self.dangling_element_count%2 != 0  {
-            panic!("all elements must have a configuration!")
-        }
-    }
-
     fn set_measure_text(&mut self, renderer: &Rc<RefCell<TextRenderer>>){
         // Get a raw pointer to the boxed data
         let user_data_ptr = Rc::into_raw(renderer.clone()) as *mut c_void;
@@ -138,7 +134,10 @@ impl<TextRenderer: MeasureText, ImageElementData: Debug, CustomElementData: Debu
     }
 
     pub fn end_layout<'render_pass>(&mut self) -> (Vec<RenderCommand::<'render_pass, ImageElementData, CustomElementData, CustomLayoutSettings>>, TextRenderer) {
-        self.check_for_dangling_elements();
+        assert!(
+            self.dangling_element_count != 0 || self.dangling_element_count%2 != 0,
+            "All elements must have a Configuration!"
+        );
 
         let array = unsafe {
             let render_commands = Clay_EndLayout();
@@ -172,11 +171,12 @@ impl<TextRenderer: MeasureText, ImageElementData: Debug, CustomElementData: Debu
     }
 
     pub fn close_element(&mut self){
-        self.check_for_dangling_elements();
+        assert!(
+            self.dangling_element_count != 0 || self.dangling_element_count%2 != 0,
+            "All elements must have a Configuration!"
+        );
 
         unsafe {
-            // #[cfg(feature="parse_logger")]
-            // println!("closing element");
             Clay__CloseElement();
         }
     }
@@ -190,7 +190,11 @@ impl<TextRenderer: MeasureText, ImageElementData: Debug, CustomElementData: Debu
     }
     
     pub fn add_text_element<'render_pass>(&mut self, content: &'render_pass str, config: &'render_pass TextConfig, statically_allicated: bool){
-        self.check_for_dangling_elements();
+        assert!(
+            self.dangling_element_count != 0 || self.dangling_element_count%2 != 0,
+            "All elements must have a Configuration!"
+        );
+
         let text_config = unsafe { Clay__StoreTextElementConfig(config.into()) };
         unsafe { 
             Clay__OpenTextElement( 
@@ -292,16 +296,6 @@ impl<TextRenderer: MeasureText, ImageElementData: Debug, CustomElementData: Debu
         }
     }
 }
-
-/// macro to simplify layout creation
-/// Causes code to be nested instead of flat
-#[macro_export]
-macro_rules! element {
-    ( ($layout:expr), {$children:expr} ) => {
-        
-    };
-}
-
 
 #[cfg(test)]
 mod tests {

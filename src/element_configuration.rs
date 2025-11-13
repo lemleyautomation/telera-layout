@@ -41,7 +41,6 @@ impl ElementConfiguration{
         self
     }
     pub fn x_grow(&mut self) -> &mut Self {
-        //println!("x-grow function");
         self.decleration.layout.sizing.width = Clay_SizingAxis {
             type_: Clay__SizingType::CLAY__SIZING_TYPE_GROW,
             size: Clay_SizingAxis__bindgen_ty_1 {
