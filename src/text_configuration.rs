@@ -1,4 +1,4 @@
-use std::{cell::RefCell, os::raw::c_void, rc::Rc};
+use std::os::raw::c_void;
 
 use crate::bindings::*;
 
@@ -164,9 +164,8 @@ where
         
         let text_config = TextConfig::from(*config);
 
-        let renderer = Rc::from_raw(user_data as *mut RefCell<T>);
-        Rc::increment_strong_count(user_data);
-        let mut renderer_ref = renderer.borrow_mut();
-        renderer_ref.measure_text(text, text_config).into()
+        let renderer: &mut T = &mut *(user_data as *mut T);
+
+        renderer.measure_text(text, text_config).into()
     }
 }
