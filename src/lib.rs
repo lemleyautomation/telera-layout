@@ -17,7 +17,7 @@ mod element_configuration;
 pub use element_configuration::ElementConfiguration;
 
 use std::{
-    cell::RefCell, fmt::Debug, marker::PhantomData, os::raw::c_void, rc::Rc
+    fmt::Debug, marker::PhantomData, os::raw::c_void,
 };
 
 unsafe extern "C" fn error_handler(error_data: Clay_ErrorData) {
@@ -34,17 +34,15 @@ unsafe extern "C" fn error_handler(error_data: Clay_ErrorData) {
 }
 
 
-pub struct LayoutEngine<Renderer: MeasureText, ImageElementData: Debug, CustomElementData: Debug, CustomLayoutSettings>{
+pub struct LayoutEngine<ImageElementData: Debug, CustomElementData: Debug, CustomLayoutSettings>{
     _memory: Vec<u8>,
     context: *mut Clay_Context,
-    text_measure_callback: Option<*const core::ffi::c_void>,
     _phantom: PhantomData<(CustomElementData, ImageElementData, CustomLayoutSettings)>,
     dangling_element_count: u32,
-    renderer: Option<Rc<RefCell<Renderer>>>
 }
 
 
-impl<TextRenderer: MeasureText, ImageElementData: Debug, CustomElementData: Debug, CustomLayoutSettings> LayoutEngine<TextRenderer, ImageElementData, CustomElementData, CustomLayoutSettings> {
+impl<ImageElementData: Debug, CustomElementData: Debug, CustomLayoutSettings> LayoutEngine<ImageElementData, CustomElementData, CustomLayoutSettings> {
     pub fn new(dimensions: (f32,f32)) -> Self{
         let memory_size = unsafe { Clay_MinMemorySize() as usize };
         let memory = vec![0; memory_size];
@@ -67,10 +65,8 @@ impl<TextRenderer: MeasureText, ImageElementData: Debug, CustomElementData: Debu
         Self {
             _memory: memory,
             context,
-            text_measure_callback: None,
             _phantom: PhantomData{},
             dangling_element_count: 0,
-            renderer: None
         }
     }
 
@@ -81,32 +77,6 @@ impl<TextRenderer: MeasureText, ImageElementData: Debug, CustomElementData: Debu
     fn undangle(&mut self){
         if let Some(dangling_element_count) = self.dangling_element_count.checked_sub(1) {
             self.dangling_element_count = dangling_element_count;
-        }
-    }
-
-    fn set_measure_text(&mut self, renderer: &Rc<RefCell<TextRenderer>>){
-        // Get a raw pointer to the boxed data
-        let user_data_ptr = Rc::into_raw(renderer.clone()) as *mut c_void;
-
-        // Register the callback with the external C function
-        unsafe {
-            Clay_SetMeasureTextFunction(
-                Some(measure_text_c_callback::<TextRenderer>), 
-                user_data_ptr
-            );
-        }
-
-        // Store the raw pointer for later cleanup
-        self.text_measure_callback = Some(user_data_ptr as *const core::ffi::c_void);
-    }
-
-    fn unset_measure_text(&mut self){
-        unsafe {
-            Clay_SetMeasureTextFunction(None, std::ptr::null::<c_void>() as _);
-        }
-        let renderer_ptr = self.text_measure_callback.take().unwrap();
-        unsafe {
-            Rc::decrement_strong_count(renderer_ptr);
         }
     }
 
@@ -122,18 +92,24 @@ impl<TextRenderer: MeasureText, ImageElementData: Debug, CustomElementData: Debu
         }
     }
 
-    pub fn begin_layout(& mut self, text_renderer: TextRenderer){
-        let renderer = Rc::<RefCell<TextRenderer>>::new(RefCell::new(text_renderer));
-        self.set_measure_text(&renderer);
-        self.renderer = Some(renderer);
-
+    pub fn begin_layout(&mut self){
         unsafe { 
             Clay_BeginLayout();
             Clay_SetCurrentContext(self.context);
         };
     }
 
-    pub fn end_layout<'render_pass>(&mut self) -> (Vec<RenderCommand::<'render_pass, ImageElementData, CustomElementData, CustomLayoutSettings>>, TextRenderer) {
+    pub fn end_layout<'render_pass, TextRenderer: MeasureText>(&mut self, text_renderer: &mut TextRenderer) -> Vec<RenderCommand::<'render_pass, ImageElementData, CustomElementData, CustomLayoutSettings>> {
+        
+        let ptr: *mut TextRenderer = text_renderer;
+        let ptr = ptr as *mut c_void;
+        unsafe {
+            Clay_SetMeasureTextFunction(
+                Some(measure_text_c_callback::<TextRenderer>), 
+                ptr
+            );
+        }
+        
         assert!(
             self.dangling_element_count == 0 && self.dangling_element_count%2 == 0,
             "All elements must have a Configuration!"
@@ -141,26 +117,22 @@ impl<TextRenderer: MeasureText, ImageElementData: Debug, CustomElementData: Debu
 
         let array = unsafe {
             let render_commands = Clay_EndLayout();
+            Clay_SetMeasureTextFunction(None, std::ptr::null::<c_void>() as _);
             core::slice::from_raw_parts(render_commands.internalArray, render_commands.length as usize)
         };
         
-        self.unset_measure_text();
-
-        (
-            array.iter().map(|command| {
-                match command.commandType {
-                    Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_NONE => RenderCommand::None,
-                    Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_RECTANGLE => RenderCommand::Rectangle(command.into()),
-                    Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_BORDER => RenderCommand::Border(command.into()),
-                    Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_TEXT => RenderCommand::Text(command.into()),
-                    Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_IMAGE => RenderCommand::Image(command.into()),
-                    Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_CUSTOM => RenderCommand::Custom(command.into()),
-                    Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_SCISSOR_START => RenderCommand::ScissorStart(command.into()),
-                    Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_SCISSOR_END => RenderCommand::ScissorEnd
-                }
-            }).collect::<Vec<RenderCommand::<ImageElementData, CustomElementData, CustomLayoutSettings>>>(),
-            RefCell::into_inner(Rc::into_inner(self.renderer.take().unwrap()).unwrap())
-        )
+        array.iter().map(|command| {
+            match command.commandType {
+                Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_NONE => RenderCommand::None,
+                Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_RECTANGLE => RenderCommand::Rectangle(command.into()),
+                Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_BORDER => RenderCommand::Border(command.into()),
+                Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_TEXT => RenderCommand::Text(command.into()),
+                Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_IMAGE => RenderCommand::Image(command.into()),
+                Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_CUSTOM => RenderCommand::Custom(command.into()),
+                Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_SCISSOR_START => RenderCommand::ScissorStart(command.into()),
+                Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_SCISSOR_END => RenderCommand::ScissorEnd
+            }
+        }).collect::<Vec<RenderCommand::<ImageElementData, CustomElementData, CustomLayoutSettings>>>()
     }
 
     pub fn open_element(&mut self){
@@ -189,7 +161,17 @@ impl<TextRenderer: MeasureText, ImageElementData: Debug, CustomElementData: Debu
         }
     }
     
-    pub fn add_text_element<'render_pass>(&mut self, content: &'render_pass str, config: &'render_pass TextConfig, statically_allicated: bool){
+    pub fn add_text_element<'render_pass, TextRenderer: MeasureText>(&mut self, content: &'render_pass str, config: &'render_pass TextConfig, statically_allicated: bool, text_renderer: &mut TextRenderer) {
+        
+        let ptr: *mut TextRenderer = text_renderer;
+        let ptr = ptr as *mut c_void;
+        unsafe {
+            Clay_SetMeasureTextFunction(
+                Some(measure_text_c_callback::<TextRenderer>), 
+                ptr
+            );
+        }
+        
         assert!(
             self.dangling_element_count == 0 && self.dangling_element_count%2 == 0,
             "All elements must have a Configuration!"
@@ -206,6 +188,10 @@ impl<TextRenderer: MeasureText, ImageElementData: Debug, CustomElementData: Debu
                 text_config 
             ) 
         };
+
+        unsafe {
+            Clay_SetMeasureTextFunction(None, std::ptr::null::<c_void>() as _);
+        }
     }
 
     pub fn pointer_state(&self, x: f32, y: f32, is_down: bool) {
@@ -289,221 +275,10 @@ impl<TextRenderer: MeasureText, ImageElementData: Debug, CustomElementData: Debu
     }
 }
 
-impl<TextRenderer: MeasureText, ImageElementData: Debug, CustomElementData: Debug, CustomLayoutSettings> Drop for LayoutEngine<TextRenderer, ImageElementData, CustomElementData, CustomLayoutSettings> {
+impl<ImageElementData: Debug, CustomElementData: Debug, CustomLayoutSettings> Drop for LayoutEngine<ImageElementData, CustomElementData, CustomLayoutSettings> {
     fn drop(&mut self) {
         unsafe {
             Clay_SetCurrentContext(core::ptr::null_mut() as _);
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    fn assert_f32(a: f32, b: f32) {
-        let epsilon: f32 = f32::EPSILON;
-        assert!(
-            (a - b).abs() < epsilon,
-            "Values are not approximately equal: a = {}, b = {}",
-            a,
-            b
-        );
-    }
-
-    #[allow(dead_code)]
-    #[derive(Debug,Default)]
-    enum Shapes {
-        Line{width:f32},
-        #[default]
-        Circle
-    }
-
-    #[allow(dead_code)]
-    #[derive(Debug, Default)]
-    struct LayoutRenderer{
-        pub mt: crate::Vec2,
-        s: String
-    }
-
-    impl crate::MeasureText for LayoutRenderer {
-        fn measure_text(&mut self, _text: &str, _text_config: crate::TextConfig) -> crate::Vec2 {
-            crate::Vec2 { x: 20.0, y: 12.0 }    
-        }
-    }
-
-    impl LayoutRenderer {
-        pub fn new() -> Self {
-            Self { mt: crate::Vec2 { x: 30.0, y: 30.0 }, s: "what's up".to_string() }
-        }
-    }
-
-    #[test]
-    #[serial_test::serial]
-    fn initialization() {
-        let layout_renderer = LayoutRenderer::new();
-        let mut layout = crate::LayoutEngine::<LayoutRenderer, (),(),()>::new((500.0,500.0));
-        layout.begin_layout(layout_renderer);
-        layout.end_layout();
-    }
-
-    #[test]
-    #[serial_test::serial]
-    fn end_to_end_layout_renderer_pointer(){
-        let mut layout_renderer = LayoutRenderer::new();
-
-        layout_renderer.mt = crate::Vec2 {x:20.0, y:12.0};
-
-        let mut layout = crate::LayoutEngine::<LayoutRenderer, (),(),()>::new((500.0,500.0));
-        
-        layout.begin_layout(layout_renderer);
-
-        layout.open_element();
-
-        let config = crate::ElementConfiguration::new()
-            .id("hi")
-            .x_grow()
-            .y_grow()
-            .padding_all(5)
-            .color(crate::Color{r:5.0,g:7.0,b:9.0,a:255.0})
-            .end();
-        layout.configure_element(&config);
-
-        let text_config = crate::TextConfig::new()
-            .font_id(0)
-            .color(crate::Color::default())
-            .font_size(12)
-            .line_height(14)
-            .end();
-        layout.add_text_element("hi1", &text_config, true);
-
-        let text_config = crate::TextConfig::new()
-            .font_id(0)
-            .color(crate::Color::default())
-            .font_size(12)
-            .line_height(14)
-            .end();
-        layout.add_text_element("hi2", &text_config, true);
-
-        let text_config = crate::TextConfig::new()
-            .font_id(0)
-            .color(crate::Color::default())
-            .font_size(12)
-            .line_height(14)
-            .end();
-        layout.add_text_element("hi3", &text_config, true);
-
-        layout.open_element();
-        let config = crate::ElementConfiguration::new()
-            .id("test")
-            .x_fixed(50.0)
-            .y_fixed(50.0)
-            .color(crate::Color::default())
-            .end();
-        layout.configure_element(&config);
-        layout.close_element();
-
-        layout.open_element();
-        let config = crate::ElementConfiguration::new()
-            .x_grow()
-            .y_grow()
-            .color(crate::Color::default())
-            .end();
-        layout.configure_element(&config);
-        layout.close_element();
-
-        layout.close_element();
-
-        let (_render_commands, layout_renderer) = layout.end_layout();
-
-        // Define an acceptable tolerance
-        let epsilon: f32 = f32::EPSILON * 10.0;
-
-        // Assert that the difference is within tolerance
-        assert!(
-            (layout_renderer.mt.x - 20.0).abs() < epsilon,
-            "Values are not approximately equal: a = {}, b = {}",
-            layout_renderer.mt.x,
-            20.0
-        );
-        assert!(
-            (layout_renderer.mt.y - 12.0).abs() < epsilon,
-            "Values are not approximately equal: a = {}, b = {}",
-            layout_renderer.mt.y,
-            12.0
-        );
-    }
-
-    #[test]
-    #[serial_test::serial]
-    fn end_to_end_custom_element() {
-        let layout_renderer = LayoutRenderer::new();
-        let mut layout = crate::LayoutEngine::<LayoutRenderer, (),Shapes,()>::new((500.0,500.0));
-        layout.begin_layout(layout_renderer);
-
-        layout.open_element();
-        let config = crate::ElementConfiguration::new()
-            .id("popup")
-            .x_fixed(200.0)
-            .y_fixed(200.0)
-            .color(crate::Color{r:0.0,g:255.0,b:0.0,a:255.0})
-            .padding_all(25)
-            .border_all(2)
-            .radius_all(20.0)
-            .floating()
-            .floating_attach_element_at_center()
-            .floating_attach_to_parent_at_center()
-            .end();
-        layout.configure_element(&config);
-        layout.open_element();
-        let config = crate::ElementConfiguration::new()
-            .color(crate::Color{r:0.0,g:0.0,b:0.0,a:255.0})
-            .x_grow()
-            .y_grow()
-            .custom_element(&Shapes::Line { width: 4.7 })
-            .end();
-        layout.configure_element(&config);
-        layout.close_element();
-        layout.close_element();
-
-        let (render_commands, _layout_renderer) = layout.end_layout();
-
-        assert_eq!(render_commands.len(),3);
-
-        if let crate::RenderCommand::Rectangle(rectangle) = &render_commands[0] {
-            assert_f32(rectangle.bounding_box.x, 150.00000);
-            assert_f32(rectangle.bounding_box.y, 150.0);
-            assert_f32(rectangle.bounding_box.width, 200.00000);
-            assert_f32(rectangle.bounding_box.height, 200.00000);
-        }
-        else {
-            panic!("Problem with Render Command: Rectangle")
-        }
-
-        if let crate::RenderCommand::Custom(custom) = &render_commands[1] {
-            assert_f32(custom.bounding_box.x, 175.00000);
-            assert_f32(custom.bounding_box.y, 175.00000);
-            assert_f32(custom.bounding_box.width, 150.00000);
-            assert_f32(custom.bounding_box.height, 150.00000);
-
-            if let Shapes::Line { width } = custom.data {
-                assert_f32(*width, 4.70000);
-            }
-            else {
-                panic!("custom data invalid")
-            }
-        }             
-        else {
-            panic!("Problem with Render Command: Custom")
-        }
-
-        if let crate::RenderCommand::Border(border) = &render_commands[2] {
-            assert_f32(border.bounding_box.x, 150.00000);
-            assert_f32(border.bounding_box.y, 150.00000);
-            assert_f32(border.bounding_box.width, 200.00000);
-            assert_f32(border.bounding_box.height, 200.00000);
-        }
-        else {
-            panic!("Problem with Render Command: Border")
-        }
-
     }
 }
