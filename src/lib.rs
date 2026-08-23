@@ -1,49 +1,42 @@
 mod bindings;
 use bindings::*;
 pub use bindings::{
-    Color, Vec2, RenderCommand,
-    Rectangle, Border,
-    Image, Custom,
-    CornerRadii, BorderWidth,
-    BoundingBox
+    Border, BorderWidth, BoundingBox, Color, CornerRadii, Custom, Image, Rectangle, RenderCommand,
+    Vec2,
 };
 
 mod text_configuration;
-use text_configuration::*;
-pub use text_configuration::TextConfig;
 pub use text_configuration::MeasureText;
+pub use text_configuration::TextConfig;
+use text_configuration::*;
 
 mod element_configuration;
 pub use element_configuration::ElementConfiguration;
 
-use std::{
-    fmt::Debug, marker::PhantomData, os::raw::c_void,
-};
+use std::{fmt::Debug, marker::PhantomData, os::raw::c_void};
 
 unsafe extern "C" fn error_handler(error_data: Clay_ErrorData) {
     unsafe {
-        let text = core::str::from_utf8_unchecked(
-            core::slice::from_raw_parts(
+        let text = core::str::from_utf8_unchecked(core::slice::from_raw_parts(
             error_data.errorText.chars as *const u8,
             error_data.errorText.length as _,
-            )
-        );
+        ));
 
         println!("Clay Error: (type: {:?}) {:?}", error_data.errorType, text);
     }
 }
 
-
-pub struct LayoutEngine<ImageElementData: Debug, CustomElementData: Debug, CustomLayoutSettings>{
+pub struct LayoutEngine<ImageElementData: Debug, CustomElementData: Debug, CustomLayoutSettings> {
     _memory: Vec<u8>,
     context: *mut Clay_Context,
     _phantom: PhantomData<(CustomElementData, ImageElementData, CustomLayoutSettings)>,
     dangling_element_count: u32,
 }
 
-
-impl<ImageElementData: Debug, CustomElementData: Debug, CustomLayoutSettings> LayoutEngine<ImageElementData, CustomElementData, CustomLayoutSettings> {
-    pub fn new(dimensions: (f32,f32)) -> Self{
+impl<ImageElementData: Debug, CustomElementData: Debug, CustomLayoutSettings>
+    LayoutEngine<ImageElementData, CustomElementData, CustomLayoutSettings>
+{
+    pub fn new(dimensions: (f32, f32)) -> Self {
         let memory_size = unsafe { Clay_MinMemorySize() as usize };
         let memory = vec![0; memory_size];
         let context;
@@ -54,7 +47,10 @@ impl<ImageElementData: Debug, CustomElementData: Debug, CustomLayoutSettings> La
 
             context = Clay_Initialize(
                 arena,
-                Clay_Dimensions { width: dimensions.0, height: dimensions.1 },
+                Clay_Dimensions {
+                    width: dimensions.0,
+                    height: dimensions.1,
+                },
                 Clay_ErrorHandler {
                     errorHandlerFunction: Some(error_handler),
                     userData: std::ptr::null_mut(),
@@ -65,16 +61,16 @@ impl<ImageElementData: Debug, CustomElementData: Debug, CustomLayoutSettings> La
         Self {
             _memory: memory,
             context,
-            _phantom: PhantomData{},
+            _phantom: PhantomData {},
             dangling_element_count: 0,
         }
     }
 
-    fn dangle(&mut self){
+    fn dangle(&mut self) {
         self.dangling_element_count += 1;
     }
 
-    fn undangle(&mut self){
+    fn undangle(&mut self) {
         if let Some(dangling_element_count) = self.dangling_element_count.checked_sub(1) {
             self.dangling_element_count = dangling_element_count;
         }
@@ -92,35 +88,38 @@ impl<ImageElementData: Debug, CustomElementData: Debug, CustomLayoutSettings> La
         }
     }
 
-    pub fn begin_layout(&mut self){
-        unsafe { 
+    pub fn begin_layout(&mut self) {
+        unsafe {
             Clay_BeginLayout();
             Clay_SetCurrentContext(self.context);
         };
     }
 
-    pub fn end_layout<'render_pass, TextRenderer: MeasureText>(&mut self, text_renderer: &mut TextRenderer) -> Vec<RenderCommand::<'render_pass, ImageElementData, CustomElementData, CustomLayoutSettings>> {
-        
+    pub fn end_layout<'render_pass, TextRenderer: MeasureText>(
+        &mut self,
+        text_renderer: &mut TextRenderer,
+    ) -> Vec<RenderCommand<'render_pass, ImageElementData, CustomElementData, CustomLayoutSettings>>
+    {
         let ptr: *mut TextRenderer = text_renderer;
         let ptr = ptr as *mut c_void;
         unsafe {
-            Clay_SetMeasureTextFunction(
-                Some(measure_text_c_callback::<TextRenderer>), 
-                ptr
-            );
+            Clay_SetMeasureTextFunction(Some(measure_text_c_callback::<TextRenderer>), ptr);
         }
-        
+
         assert!(
-            self.dangling_element_count == 0 && self.dangling_element_count%2 == 0,
+            self.dangling_element_count == 0 && self.dangling_element_count % 2 == 0,
             "All elements must have a Configuration!"
         );
 
         let array = unsafe {
             let render_commands = Clay_EndLayout();
             Clay_SetMeasureTextFunction(None, std::ptr::null::<c_void>() as _);
-            core::slice::from_raw_parts(render_commands.internalArray, render_commands.length as usize)
+            core::slice::from_raw_parts(
+                render_commands.internalArray,
+                render_commands.length as usize,
+            )
         };
-        
+
         array.iter().map(|command| {
             match command.commandType {
                 Clay_RenderCommandType::CLAY_RENDER_COMMAND_TYPE_NONE => RenderCommand::None,
@@ -135,16 +134,16 @@ impl<ImageElementData: Debug, CustomElementData: Debug, CustomLayoutSettings> La
         }).collect::<Vec<RenderCommand::<ImageElementData, CustomElementData, CustomLayoutSettings>>>()
     }
 
-    pub fn open_element(&mut self){
+    pub fn open_element(&mut self) {
         self.dangle();
         unsafe {
             Clay__OpenElement();
         }
     }
 
-    pub fn close_element(&mut self){
+    pub fn close_element(&mut self) {
         assert!(
-            self.dangling_element_count == 0 && self.dangling_element_count%2 == 0,
+            self.dangling_element_count == 0 && self.dangling_element_count % 2 == 0,
             "All elements must have a Configuration!"
         );
 
@@ -160,33 +159,35 @@ impl<ImageElementData: Debug, CustomElementData: Debug, CustomLayoutSettings> La
             Clay_GetOpenElementId()
         }
     }
-    
-    pub fn add_text_element<'render_pass, TextRenderer: MeasureText>(&mut self, content: &'render_pass str, config: &'render_pass TextConfig, statically_allicated: bool, text_renderer: &mut TextRenderer) {
-        
+
+    pub fn add_text_element<'render_pass, TextRenderer: MeasureText>(
+        &mut self,
+        content: &'render_pass str,
+        config: &'render_pass TextConfig,
+        statically_allicated: bool,
+        text_renderer: &mut TextRenderer,
+    ) {
         let ptr: *mut TextRenderer = text_renderer;
         let ptr = ptr as *mut c_void;
         unsafe {
-            Clay_SetMeasureTextFunction(
-                Some(measure_text_c_callback::<TextRenderer>), 
-                ptr
-            );
+            Clay_SetMeasureTextFunction(Some(measure_text_c_callback::<TextRenderer>), ptr);
         }
-        
+
         assert!(
-            self.dangling_element_count == 0 && self.dangling_element_count%2 == 0,
+            self.dangling_element_count == 0 && self.dangling_element_count.is_multiple_of(2),
             "All elements must have a Configuration!"
         );
 
         let text_config = unsafe { Clay__StoreTextElementConfig(config.into()) };
-        unsafe { 
-            Clay__OpenTextElement( 
-                Clay_String { 
-                    isStaticallyAllocated: statically_allicated, 
-                    length: content.len() as i32, 
-                    chars: content.as_ptr() as *mut _
-                }, 
-                text_config 
-            ) 
+        unsafe {
+            Clay__OpenTextElement(
+                Clay_String {
+                    isStaticallyAllocated: statically_allicated,
+                    length: content.len() as i32,
+                    chars: content.as_ptr() as *mut _,
+                },
+                text_config,
+            )
         };
 
         unsafe {
@@ -208,25 +209,28 @@ impl<ImageElementData: Debug, CustomElementData: Debug, CustomLayoutSettings> La
         delta_time: f32,
     ) {
         unsafe {
-            Clay_UpdateScrollContainers(drag_scrolling_enabled, Clay_Vector2 { x: delta_x, y: delta_y }, delta_time);
+            Clay_UpdateScrollContainers(
+                drag_scrolling_enabled,
+                Clay_Vector2 {
+                    x: delta_x,
+                    y: delta_y,
+                },
+                delta_time,
+            );
         }
     }
 
-    pub fn get_scroll_offset(&self) -> Clay_Vector2{
-        unsafe {
-            return Clay_GetScrollOffset()
-        }
+    pub fn get_scroll_offset(&self) -> Clay_Vector2 {
+        unsafe { return Clay_GetScrollOffset() }
     }
 
     pub fn get_element_id(&self, id: &str) -> Clay_ElementId {
         let id = unsafe {
-            Clay_GetElementId(
-                Clay_String { 
-                    isStaticallyAllocated: false,
-                    length: id.len() as i32, 
-                    chars: id.as_ptr() as *const i8
-                }
-            )
+            Clay_GetElementId(Clay_String {
+                isStaticallyAllocated: false,
+                length: id.len() as i32,
+                chars: id.as_ptr() as *const i8,
+            })
         };
 
         id
@@ -275,7 +279,9 @@ impl<ImageElementData: Debug, CustomElementData: Debug, CustomLayoutSettings> La
     }
 }
 
-impl<ImageElementData: Debug, CustomElementData: Debug, CustomLayoutSettings> Drop for LayoutEngine<ImageElementData, CustomElementData, CustomLayoutSettings> {
+impl<ImageElementData: Debug, CustomElementData: Debug, CustomLayoutSettings> Drop
+    for LayoutEngine<ImageElementData, CustomElementData, CustomLayoutSettings>
+{
     fn drop(&mut self) {
         unsafe {
             Clay_SetCurrentContext(core::ptr::null_mut() as _);
