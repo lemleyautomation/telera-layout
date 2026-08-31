@@ -107,7 +107,7 @@ impl<ImageElementData: Debug, CustomElementData: Debug, CustomLayoutSettings>
         }
 
         assert!(
-            self.dangling_element_count == 0 && self.dangling_element_count % 2 == 0,
+            self.dangling_element_count == 0 && self.dangling_element_count.is_multiple_of(2),
             "All elements must have a Configuration!"
         );
 
@@ -143,7 +143,7 @@ impl<ImageElementData: Debug, CustomElementData: Debug, CustomLayoutSettings>
 
     pub fn close_element(&mut self) {
         assert!(
-            self.dangling_element_count == 0 && self.dangling_element_count % 2 == 0,
+            self.dangling_element_count == 0 && self.dangling_element_count.is_multiple_of(2),
             "All elements must have a Configuration!"
         );
 
@@ -152,7 +152,7 @@ impl<ImageElementData: Debug, CustomElementData: Debug, CustomLayoutSettings>
         }
     }
 
-    pub fn configure_element<'render_pass>(&mut self, config: &ElementConfiguration) -> u32 {
+    pub fn configure_element(&mut self, config: &ElementConfiguration) -> u32 {
         self.undangle();
         unsafe {
             Clay__ConfigureOpenElement(config.into());
@@ -221,19 +221,17 @@ impl<ImageElementData: Debug, CustomElementData: Debug, CustomLayoutSettings>
     }
 
     pub fn get_scroll_offset(&self) -> Clay_Vector2 {
-        unsafe { return Clay_GetScrollOffset() }
+        unsafe { Clay_GetScrollOffset() }
     }
 
     pub fn get_element_id(&self, id: &str) -> Clay_ElementId {
-        let id = unsafe {
+        unsafe {
             Clay_GetElementId(Clay_String {
                 isStaticallyAllocated: false,
                 length: id.len() as i32,
                 chars: id.as_ptr() as *const i8,
             })
-        };
-
-        id
+        }
     }
 
     pub fn scroll_container_data(&self, id: Clay_ElementId) -> Option<Clay_ScrollContainerData> {

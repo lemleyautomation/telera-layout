@@ -92,7 +92,7 @@ impl TextConfig {
         self
     }
 
-    pub fn parse(&mut self){}
+    pub fn parse(&mut self) {}
 
     /// Finalizes the text configuration
     #[inline]
@@ -110,7 +110,7 @@ impl Default for TextConfig {
             letter_spacing: 0,
             line_height: 14,
             wrap_mode: Clay_TextElementConfigWrapMode::CLAY_TEXT_WRAP_WORDS,
-            alignment: Clay_TextAlignment::CLAY_TEXT_ALIGN_LEFT
+            alignment: Clay_TextAlignment::CLAY_TEXT_ALIGN_LEFT,
         }
     }
 }
@@ -125,7 +125,7 @@ impl From<&TextConfig> for Clay_TextElementConfig {
             lineHeight: value.line_height,
             wrapMode: value.wrap_mode as _,
             textAlignment: value.alignment as _,
-            userData: std::ptr::null::<usize>() as *mut usize as *mut c_void
+            userData: std::ptr::null::<usize>() as *mut usize as *mut c_void,
         }
     }
 }
@@ -139,12 +139,12 @@ impl From<Clay_TextElementConfig> for TextConfig {
             letter_spacing: value.letterSpacing,
             line_height: value.lineHeight,
             wrap_mode: value.wrapMode,
-            alignment: value.textAlignment
+            alignment: value.textAlignment,
         }
     }
 }
 
-pub trait MeasureText{
+pub trait MeasureText {
     fn measure_text(&mut self, text: &str, text_config: TextConfig) -> Vec2;
 }
 
@@ -161,7 +161,7 @@ where
             text_slice.chars as *const u8,
             text_slice.length as _,
         ));
-        
+
         let text_config = TextConfig::from(*config);
 
         let renderer: &mut T = &mut *(user_data as *mut T);

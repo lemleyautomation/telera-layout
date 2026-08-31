@@ -7,12 +7,11 @@
 mod clay;
 
 use std::str::FromStr;
-use csscolorparser;
 
 pub use clay::*;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Color{
+pub struct Color {
     pub r: f32,
     pub g: f32,
     pub b: f32,
@@ -24,37 +23,68 @@ impl FromStr for Color {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match csscolorparser::parse(s) {
             Ok(color) => Ok(color.to_rgba8().into()),
-            Err(e) => Err(e)
+            Err(e) => Err(e),
         }
     }
 }
 
 impl Default for Color {
     fn default() -> Self {
-        Color { r: 0.0, g: 0.0, b: 0.0, a: 255.0 }
+        Color {
+            r: 0.0,
+            g: 0.0,
+            b: 0.0,
+            a: 255.0,
+        }
     }
 }
 
-impl Into<Clay_Color> for Color{
+impl Color {
+    pub const fn rgb(r: u8, g: u8, b: u8) -> Self {
+        Color {
+            r: r as f32,
+            g: g as f32,
+            b: b as f32,
+            a: 255.0,
+        }
+    }
+}
+
+impl Into<Clay_Color> for Color {
     fn into(self) -> Clay_Color {
-        Clay_Color { r: self.r, g: self.g, b: self.b, a: self.a }
+        Clay_Color {
+            r: self.r,
+            g: self.g,
+            b: self.b,
+            a: self.a,
+        }
     }
 }
 
-impl Into<Color> for Clay_Color{
+impl Into<Color> for Clay_Color {
     fn into(self) -> Color {
-        Color { r: self.r, g: self.g, b: self.b, a: self.a }
+        Color {
+            r: self.r,
+            g: self.g,
+            b: self.b,
+            a: self.a,
+        }
     }
 }
 
-impl Into<Color> for [u8;4] {
-    fn into(self) -> Color {
-        Color { r: self[0] as f32, g: self[1] as f32, b: self[2] as f32, a: self[3] as f32 }
+impl From<[u8; 4]> for Color {
+    fn from(value: [u8; 4]) -> Self {
+        Self {
+            r: value[0] as f32,
+            g: value[1] as f32,
+            b: value[2] as f32,
+            a: value[3] as f32,
+        }
     }
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct BoundingBox{
+pub struct BoundingBox {
     pub x: f32,
     pub y: f32,
     pub width: f32,
@@ -63,26 +93,37 @@ pub struct BoundingBox{
 
 impl Into<BoundingBox> for Clay_BoundingBox {
     fn into(self) -> BoundingBox {
-        BoundingBox { x: self.x, y: self.y, width: self.width, height: self.height }
+        BoundingBox {
+            x: self.x,
+            y: self.y,
+            width: self.width,
+            height: self.height,
+        }
     }
 }
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Default)]
-pub struct Vec2{
+pub struct Vec2 {
     pub x: f32,
-    pub y: f32
+    pub y: f32,
 }
 
 impl Into<Vec2> for Clay_Dimensions {
     fn into(self) -> Vec2 {
-        Vec2 { x: self.width, y: self.height }
+        Vec2 {
+            x: self.width,
+            y: self.height,
+        }
     }
 }
 
 impl Into<Clay_Dimensions> for Vec2 {
     fn into(self) -> Clay_Dimensions {
-        Clay_Dimensions { width: self.x, height: self.y }
+        Clay_Dimensions {
+            width: self.x,
+            height: self.y,
+        }
     }
 }
 
@@ -127,7 +168,13 @@ pub struct BorderWidth {
 
 impl Into<BorderWidth> for Clay_BorderWidth {
     fn into(self) -> BorderWidth {
-        BorderWidth { left: self.left, right: self.right, top: self.top, bottom: self.bottom, between_children: self.betweenChildren }
+        BorderWidth {
+            left: self.left,
+            right: self.right,
+            top: self.top,
+            bottom: self.bottom,
+            between_children: self.betweenChildren,
+        }
     }
 }
 
@@ -246,84 +293,104 @@ pub struct Custom<'render_pass, CustomElementData, CustomLayoutSettings> {
     pub data: &'render_pass CustomElementData,
 }
 
-impl<'render_pass, CustomLayoutSettings> From<&Clay_RenderCommand> for Rectangle<'render_pass, CustomLayoutSettings> {
+impl<'render_pass, CustomLayoutSettings> From<&Clay_RenderCommand>
+    for Rectangle<'render_pass, CustomLayoutSettings>
+{
     fn from(value: &Clay_RenderCommand) -> Self {
-        Rectangle { 
-            bounding_box: value.boundingBox.into(), 
-            id: value.id, 
+        Rectangle {
+            bounding_box: value.boundingBox.into(),
+            id: value.id,
             z_index: value.zIndex,
-            custom_layout_settings: unsafe {value.userData.cast::<CustomLayoutSettings>().as_ref()},
-            color: unsafe { value.renderData.rectangle.backgroundColor.into() }, 
-            corner_radii: unsafe { value.renderData.rectangle.cornerRadius.into() }
+            custom_layout_settings: unsafe {
+                value.userData.cast::<CustomLayoutSettings>().as_ref()
+            },
+            color: unsafe { value.renderData.rectangle.backgroundColor.into() },
+            corner_radii: unsafe { value.renderData.rectangle.cornerRadius.into() },
         }
     }
 }
 
-impl<'render_pass, CustomLayoutSettings> From<&Clay_RenderCommand> for Border<'render_pass, CustomLayoutSettings> {
+impl<'render_pass, CustomLayoutSettings> From<&Clay_RenderCommand>
+    for Border<'render_pass, CustomLayoutSettings>
+{
     fn from(value: &Clay_RenderCommand) -> Self {
-        Border { 
-            bounding_box: value.boundingBox.into(), 
-            id: value.id, 
-            z_index: value.zIndex, 
-            custom_layout_settings: unsafe {value.userData.cast::<CustomLayoutSettings>().as_ref()},
-            color: unsafe { value.renderData.border.color.into() }, 
-            corner_radii: unsafe { value.renderData.border.cornerRadius.into() }, 
-            width: unsafe { value.renderData.border.width.into() } 
+        Border {
+            bounding_box: value.boundingBox.into(),
+            id: value.id,
+            z_index: value.zIndex,
+            custom_layout_settings: unsafe {
+                value.userData.cast::<CustomLayoutSettings>().as_ref()
+            },
+            color: unsafe { value.renderData.border.color.into() },
+            corner_radii: unsafe { value.renderData.border.cornerRadius.into() },
+            width: unsafe { value.renderData.border.width.into() },
         }
     }
 }
 
-impl<'render_pass, CustomLayoutSettings> From<&Clay_RenderCommand> for Text<'render_pass, CustomLayoutSettings> {
+impl<'render_pass, CustomLayoutSettings> From<&Clay_RenderCommand>
+    for Text<'render_pass, CustomLayoutSettings>
+{
     fn from(value: &Clay_RenderCommand) -> Self {
-        Text { 
-            bounding_box: value.boundingBox.into(), 
-            id: value.id, 
+        Text {
+            bounding_box: value.boundingBox.into(),
+            id: value.id,
             z_index: value.zIndex,
-            custom_layout_settings: unsafe {value.userData.cast::<CustomLayoutSettings>().as_ref()},
+            custom_layout_settings: unsafe {
+                value.userData.cast::<CustomLayoutSettings>().as_ref()
+            },
             text: unsafe {
                 core::str::from_utf8_unchecked(core::slice::from_raw_parts(
                     value.renderData.text.stringContents.chars as *const u8,
                     value.renderData.text.stringContents.length as _,
                 ))
-            }, 
-            color: unsafe { value.renderData.text.textColor.into()  }, 
-            font_id: unsafe { value.renderData.text.fontId  }, 
-            font_size: unsafe { value.renderData.text.fontSize  }, 
-            letter_spacing: unsafe { value.renderData.text.letterSpacing  }, 
-            line_height: unsafe { value.renderData.text.lineHeight  }, 
+            },
+            color: unsafe { value.renderData.text.textColor.into() },
+            font_id: unsafe { value.renderData.text.fontId },
+            font_size: unsafe { value.renderData.text.fontSize },
+            letter_spacing: unsafe { value.renderData.text.letterSpacing },
+            line_height: unsafe { value.renderData.text.lineHeight },
         }
     }
 }
 
-impl<'render_pass> From<&Clay_RenderCommand> for BoundingBox {
+impl From<&Clay_RenderCommand> for BoundingBox {
     fn from(value: &Clay_RenderCommand) -> Self {
-        value.boundingBox.clone().into()
+        value.boundingBox.into()
     }
 }
 
-impl<'render_pass, ImageElementData, CustomLayoutSettings> From<&Clay_RenderCommand> for Image<'render_pass, ImageElementData, CustomLayoutSettings>{
+impl<'render_pass, ImageElementData, CustomLayoutSettings> From<&Clay_RenderCommand>
+    for Image<'render_pass, ImageElementData, CustomLayoutSettings>
+{
     fn from(value: &Clay_RenderCommand) -> Self {
-        Image { 
-            bounding_box: value.boundingBox.into(), 
-            id: value.id, 
-            z_index: value.zIndex, 
-            custom_layout_settings: unsafe {value.userData.cast::<CustomLayoutSettings>().as_ref()},
-            background_color: unsafe { value.renderData.image.backgroundColor.into() }, 
-            dimensions: Vec2 { x: 0.0, y: 0.0 }, 
-            data: unsafe { &*value.renderData.image.imageData.cast() }
+        Image {
+            bounding_box: value.boundingBox.into(),
+            id: value.id,
+            z_index: value.zIndex,
+            custom_layout_settings: unsafe {
+                value.userData.cast::<CustomLayoutSettings>().as_ref()
+            },
+            background_color: unsafe { value.renderData.image.backgroundColor.into() },
+            dimensions: Vec2 { x: 0.0, y: 0.0 },
+            data: unsafe { &*value.renderData.image.imageData.cast() },
         }
     }
 }
 
-impl<CustomElementData, CustomLayoutSettings> From<&Clay_RenderCommand> for Custom<'_, CustomElementData, CustomLayoutSettings> {
+impl<CustomElementData, CustomLayoutSettings> From<&Clay_RenderCommand>
+    for Custom<'_, CustomElementData, CustomLayoutSettings>
+{
     fn from(value: &Clay_RenderCommand) -> Self {
         Custom {
-            bounding_box: value.boundingBox.into(), 
-            id: value.id, 
+            bounding_box: value.boundingBox.into(),
+            id: value.id,
             z_index: value.zIndex,
-            custom_layout_settings: unsafe {value.userData.cast::<CustomLayoutSettings>().as_ref()},
-            background_color: unsafe { value.renderData.custom.backgroundColor.into() }, 
-            corner_radii: unsafe { value.renderData.custom.cornerRadius.into() }, 
+            custom_layout_settings: unsafe {
+                value.userData.cast::<CustomLayoutSettings>().as_ref()
+            },
+            background_color: unsafe { value.renderData.custom.backgroundColor.into() },
+            corner_radii: unsafe { value.renderData.custom.cornerRadius.into() },
             data: unsafe { &*value.renderData.custom.customData.cast() },
         }
     }

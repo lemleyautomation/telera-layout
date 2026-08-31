@@ -1,28 +1,33 @@
-use telera_layout::{Color, ElementConfiguration, LayoutEngine, MeasureText, RenderCommand, TextConfig, Vec2};
+use telera_layout::{
+    Color, ElementConfiguration, LayoutEngine, MeasureText, RenderCommand, TextConfig, Vec2,
+};
 
 #[derive(Debug, Default)]
-struct LayoutRenderer{
+struct LayoutRenderer {
     pub mt: Vec2,
-    s: String
+    s: String,
 }
 
 impl MeasureText for LayoutRenderer {
     fn measure_text(&mut self, _text: &str, _text_config: TextConfig) -> Vec2 {
-        self.mt.clone()
+        self.mt
     }
 }
 
 impl LayoutRenderer {
     pub fn new() -> Self {
-        Self { mt: Vec2 { x: 30.0, y: 30.0 }, s: "what's up".to_string() }
+        Self {
+            mt: Vec2 { x: 30.0, y: 30.0 },
+            s: "what's up".to_string(),
+        }
     }
 }
 
 fn main() {
     let mut layout_renderer = LayoutRenderer::new();
 
-    let mut layout = LayoutEngine::<(),(),()>::new((500.0,500.0));
-    
+    let mut layout = LayoutEngine::<(), (), ()>::new((500.0, 500.0));
+
     layout.begin_layout();
 
     layout.open_element();
@@ -32,7 +37,12 @@ fn main() {
         .x_grow()
         .y_grow()
         .padding_all(5)
-        .color(Color{r:5.0,g:7.0,b:9.0,a:255.0})
+        .color(Color {
+            r: 5.0,
+            g: 7.0,
+            b: 9.0,
+            a: 255.0,
+        })
         .end();
     layout.configure_element(&config);
 
@@ -94,5 +104,5 @@ fn main() {
     }
 
     println!("{:?}", layout_renderer.s);
-
 }
+
