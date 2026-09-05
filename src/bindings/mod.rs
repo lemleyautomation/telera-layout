@@ -48,6 +48,14 @@ impl Color {
             a: 255.0,
         }
     }
+    pub const fn to_clay(self) -> Clay_Color {
+        Clay_Color {
+            r: self.r,
+            g: self.g,
+            b: self.b,
+            a: self.a,
+        }
+    }
 }
 
 impl Into<Clay_Color> for Color {
