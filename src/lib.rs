@@ -51,7 +51,7 @@ unsafe extern "C" fn error_handler(error_data: Clay_ErrorData) {
 ///
 /// let mut engine = LayoutEngine::<NoText, (), (), ()>::new((800.0, 600.0));
 ///
-/// let background = ElementConfiguration::new().grow_all().color(Color::rgb(0, 0, 0)).end();
+/// let background = ElementConfiguration::new().grow().color(Color::rgb(0, 0, 0)).end();
 ///
 /// engine.begin_layout(NoText);
 /// engine.open_element();
@@ -196,7 +196,7 @@ impl<
     /// }
     ///
     /// let mut engine = LayoutEngine::<Mono, (), (), ()>::new((320.0, 240.0));
-    /// let row = ElementConfiguration::new().grow_all().end();
+    /// let row = ElementConfiguration::new().grow().end();
     /// let label = TextConfig::new().font_size(16).line_height(20).end();
     ///
     /// engine.begin_layout(Mono);
@@ -299,7 +299,7 @@ impl<
     /// # use telera_layout::{ElementConfiguration, LayoutEngine, MeasureText, TextConfig, Vec2};
     /// # struct N; impl MeasureText for N { fn measure_text(&mut self, _t: &str, _c: TextConfig) -> Vec2 { Vec2::default() } }
     /// let mut engine = LayoutEngine::<N, (), (), ()>::new((100.0, 100.0));
-    /// let panel = ElementConfiguration::new().id("panel").grow_all().end();
+    /// let panel = ElementConfiguration::new().id("panel").grow().end();
     ///
     /// engine.begin_layout(N);
     /// engine.open_element();
@@ -392,7 +392,7 @@ impl<
     }
 
     /// The scroll offset clay applied to the currently open clip element this pass;
-    /// pass it to [`ElementConfiguration::clip_child_offset`] on that element.
+    /// pass it to [`ElementConfiguration::scroll_child_offset`] on that element.
     pub fn get_scroll_offset(&self) -> Clay_Vector2 {
         unsafe { Clay_GetScrollOffset() }
     }
@@ -724,7 +724,7 @@ mod tests {
 
         engine.begin_layout(RecordingText::default());
         engine.open_element();
-        let cfg = ElementConfiguration::new().grow_all().end();
+        let cfg = ElementConfiguration::new().grow().end();
         engine.configure_element(&cfg);
         let text_cfg = TextConfig::new().end();
         engine.add_text_element("hello ", &text_cfg, true);

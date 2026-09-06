@@ -14,8 +14,8 @@ use crate::bindings::*;
 ///     .font_id(1)
 ///     .font_size(32)
 ///     .line_height(38)
-///     .color(Color::rgb(20, 20, 20))
-///     .alignment_center()
+///     .font_color(Color::rgb(20, 20, 20))
+///     .align_center()
 ///     .end();
 /// assert_eq!(heading.font_size, 32);
 /// ```
@@ -24,7 +24,7 @@ use crate::bindings::*;
 #[derive(Debug, Clone, Copy)]
 pub struct TextConfig {
     /// The color of the text.
-    pub color: Color,
+    pub font_color: Color,
     /// Identifies which font the text-measurement callback and renderer should use.
     /// clay does not manage fonts; the caller assigns the ids. The debug view uses `0`.
     pub font_id: u16,
@@ -36,7 +36,7 @@ pub struct TextConfig {
     pub line_height: u16,
     /// Defines the text wrapping behavior.
     pub wrap_mode: Clay_TextElementConfigWrapMode,
-    /// The alignment of the text.
+    /// The alignment of wrapped lines within the text bounding box.
     pub alignment: Clay_TextAlignment,
     /// Opaque pointer transparently passed through to `Clay_MeasureText` and to the
     /// resulting TEXT render command (clay's `.userData`). Null unless set via
@@ -49,7 +49,7 @@ impl TextConfig {
     /// line height `14`, no letter spacing, word wrapping, left alignment, no user data.
     pub const fn new() -> Self {
         Self {
-            color: Color::rgb(0, 0, 0),
+            font_color: Color::rgb(0, 0, 0),
             font_id: 0,
             font_size: 12,
             letter_spacing: 0,
@@ -60,35 +60,36 @@ impl TextConfig {
         }
     }
 
-    /// Sets the text color.
+    /// Sets the text color (TML `font-color`).
     #[inline]
-    pub const fn color(&mut self, color: Color) -> &mut Self {
-        self.color = color;
+    pub const fn font_color(&mut self, color: Color) -> &mut Self {
+        self.font_color = color;
         self
     }
 
-    /// Sets the font ID. The user is responsible for assigning unique font IDs.
+    /// Sets the font id (TML `font-id`). The caller is responsible for assigning
+    /// unique ids.
     #[inline]
     pub const fn font_id(&mut self, id: u16) -> &mut Self {
         self.font_id = id;
         self
     }
 
-    /// Sets the font size.
+    /// Sets the font size (TML `font-size`).
     #[inline]
     pub const fn font_size(&mut self, size: u16) -> &mut Self {
         self.font_size = size;
         self
     }
 
-    /// Sets the letter spacing.
+    /// Sets the extra spacing inserted between characters (TML `letter-spacing`).
     #[inline]
     pub const fn letter_spacing(&mut self, spacing: u16) -> &mut Self {
         self.letter_spacing = spacing;
         self
     }
 
-    /// Sets the line height.
+    /// Sets the line height (TML `line-height`).
     #[inline]
     pub const fn line_height(&mut self, height: u16) -> &mut Self {
         self.line_height = height;
@@ -113,19 +114,19 @@ impl TextConfig {
         self
     }
 
-    /// Aligns wrapped lines to the left edge of the text bounding box.
+    /// Aligns wrapped lines to the left edge of the text bounding box (TML `align left`).
     #[inline]
-    pub const fn alignment_left(&mut self) -> &mut Self {
+    pub const fn align_left(&mut self) -> &mut Self {
         self.alignment = Clay_TextAlignment::CLAY_TEXT_ALIGN_LEFT;
         self
     }
-    /// Aligns wrapped lines to the right edge of the text bounding box.
-    pub const fn alignment_right(&mut self) -> &mut Self {
+    /// Aligns wrapped lines to the right edge of the text bounding box (TML `align right`).
+    pub const fn align_right(&mut self) -> &mut Self {
         self.alignment = Clay_TextAlignment::CLAY_TEXT_ALIGN_RIGHT;
         self
     }
-    /// Centers wrapped lines within the text bounding box.
-    pub const fn alignment_center(&mut self) -> &mut Self {
+    /// Centers wrapped lines within the text bounding box (TML `align center`).
+    pub const fn align_center(&mut self) -> &mut Self {
         self.alignment = Clay_TextAlignment::CLAY_TEXT_ALIGN_CENTER;
         self
     }
@@ -149,7 +150,7 @@ impl TextConfig {
 impl Default for TextConfig {
     fn default() -> Self {
         Self {
-            color: Color::default(),
+            font_color: Color::default(),
             font_id: 0,
             font_size: 12,
             letter_spacing: 0,
@@ -164,7 +165,7 @@ impl Default for TextConfig {
 impl From<&TextConfig> for Clay_TextElementConfig {
     fn from(value: &TextConfig) -> Self {
         Self {
-            textColor: value.color.into(),
+            textColor: value.font_color.into(),
             fontId: value.font_id,
             fontSize: value.font_size,
             letterSpacing: value.letter_spacing,
@@ -179,7 +180,7 @@ impl From<&TextConfig> for Clay_TextElementConfig {
 impl From<Clay_TextElementConfig> for TextConfig {
     fn from(value: Clay_TextElementConfig) -> Self {
         Self {
-            color: value.textColor.into(),
+            font_color: value.textColor.into(),
             font_id: value.fontId,
             font_size: value.fontSize,
             letter_spacing: value.letterSpacing,
@@ -251,13 +252,13 @@ mod tests {
     fn builders_cover_every_field_without_clobbering() {
         let marker = 0xABCDu32;
         let mut cfg = TextConfig::new();
-        cfg.color(Color::rgb(10, 20, 30))
+        cfg.font_color(Color::rgb(10, 20, 30))
             .font_id(3)
             .font_size(24)
             .letter_spacing(2)
             .line_height(28)
             .wrap_mode_none()
-            .alignment_center()
+            .align_center()
             .user_data(&marker);
 
         let c: Clay_TextElementConfig = (&cfg).into();

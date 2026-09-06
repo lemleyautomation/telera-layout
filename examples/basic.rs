@@ -39,8 +39,8 @@ fn main() {
 
     let config = ElementConfiguration::new()
         .id("hi")
-        .x_grow()
-        .y_grow()
+        .width_grow()
+        .height_grow()
         .padding_all(5)
         .color(Color {
             r: 5.0,
@@ -53,7 +53,7 @@ fn main() {
 
     let text_config = crate::TextConfig::new()
         .font_id(0)
-        .color(crate::Color::default())
+        .font_color(crate::Color::default())
         .font_size(12)
         .line_height(14)
         .end();
@@ -61,7 +61,7 @@ fn main() {
 
     let text_config = crate::TextConfig::new()
         .font_id(0)
-        .color(crate::Color::default())
+        .font_color(crate::Color::default())
         .font_size(45)
         .line_height(50)
         .end();
@@ -69,7 +69,7 @@ fn main() {
 
     let text_config = crate::TextConfig::new()
         .font_id(0)
-        .color(crate::Color::default())
+        .font_color(crate::Color::default())
         .font_size(12)
         .line_height(14)
         .end();
@@ -78,8 +78,8 @@ fn main() {
     layout.open_element();
     let config = crate::ElementConfiguration::new()
         .id("test")
-        .x_fixed(50.0)
-        .y_fixed(50.0)
+        .width_fixed(50.0)
+        .height_fixed(50.0)
         .color(crate::Color::default())
         .end();
     layout.configure_element(&config);
@@ -87,8 +87,8 @@ fn main() {
 
     layout.open_element();
     let config = crate::ElementConfiguration::new()
-        .x_grow()
-        .y_grow()
+        .width_grow()
+        .height_grow()
         .color(crate::Color::default())
         .end();
     layout.configure_element(&config);

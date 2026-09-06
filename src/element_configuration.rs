@@ -15,7 +15,7 @@ use crate::bindings::*;
 ///
 /// let panel = ElementConfiguration::new()
 ///     .id("panel")
-///     .grow_all()
+///     .grow()
 ///     .padding_all(8)
 ///     .child_gap(4)
 ///     .color(Color::rgb(30, 30, 40))
@@ -83,8 +83,8 @@ impl ElementConfiguration {
         self
     }
     /// Grows both axes to fill the remaining space in the parent, shared with other
-    /// growing siblings.
-    pub const fn grow_all(&mut self) -> &mut Self {
+    /// growing siblings (TML `grow`).
+    pub const fn grow(&mut self) -> &mut Self {
         self.decleration.layout.sizing.width = Clay_SizingAxis {
             type_: Clay__SizingType::CLAY__SIZING_TYPE_GROW,
             size: Clay_SizingAxis__bindgen_ty_1 {
@@ -106,7 +106,7 @@ impl ElementConfiguration {
         self
     }
     /// Grows the width to fill the remaining horizontal space in the parent.
-    pub const fn x_grow(&mut self) -> &mut Self {
+    pub const fn width_grow(&mut self) -> &mut Self {
         self.decleration.layout.sizing.width = Clay_SizingAxis {
             type_: Clay__SizingType::CLAY__SIZING_TYPE_GROW,
             size: Clay_SizingAxis__bindgen_ty_1 {
@@ -119,7 +119,7 @@ impl ElementConfiguration {
         self
     }
     /// Grows the width to fill remaining horizontal space, never shrinking below `min`.
-    pub const fn x_grow_min(&mut self, min: f32) -> &mut Self {
+    pub const fn width_grow_min(&mut self, min: f32) -> &mut Self {
         self.decleration.layout.sizing.width = Clay_SizingAxis {
             type_: Clay__SizingType::CLAY__SIZING_TYPE_GROW,
             size: Clay_SizingAxis__bindgen_ty_1 {
@@ -129,7 +129,7 @@ impl ElementConfiguration {
         self
     }
     /// Grows the width to fill remaining horizontal space, clamped to `min..=max`.
-    pub const fn x_grow_min_max(&mut self, min: f32, max: f32) -> &mut Self {
+    pub const fn width_grow_min_max(&mut self, min: f32, max: f32) -> &mut Self {
         self.decleration.layout.sizing.width = Clay_SizingAxis {
             type_: Clay__SizingType::CLAY__SIZING_TYPE_GROW,
             size: Clay_SizingAxis__bindgen_ty_1 {
@@ -139,7 +139,7 @@ impl ElementConfiguration {
         self
     }
     /// Grows the height to fill the remaining vertical space in the parent.
-    pub const fn y_grow(&mut self) -> &mut Self {
+    pub const fn height_grow(&mut self) -> &mut Self {
         self.decleration.layout.sizing.height = Clay_SizingAxis {
             type_: Clay__SizingType::CLAY__SIZING_TYPE_GROW,
             size: Clay_SizingAxis__bindgen_ty_1 {
@@ -152,7 +152,7 @@ impl ElementConfiguration {
         self
     }
     /// Grows the height to fill remaining vertical space, never shrinking below `min`.
-    pub const fn y_grow_min(&mut self, min: f32) -> &mut Self {
+    pub const fn height_grow_min(&mut self, min: f32) -> &mut Self {
         self.decleration.layout.sizing.height = Clay_SizingAxis {
             type_: Clay__SizingType::CLAY__SIZING_TYPE_GROW,
             size: Clay_SizingAxis__bindgen_ty_1 {
@@ -162,7 +162,7 @@ impl ElementConfiguration {
         self
     }
     /// Grows the height to fill remaining vertical space, clamped to `min..=max`.
-    pub const fn y_grow_min_max(&mut self, min: f32, max: f32) -> &mut Self {
+    pub const fn height_grow_min_max(&mut self, min: f32, max: f32) -> &mut Self {
         self.decleration.layout.sizing.height = Clay_SizingAxis {
             type_: Clay__SizingType::CLAY__SIZING_TYPE_GROW,
             size: Clay_SizingAxis__bindgen_ty_1 {
@@ -172,7 +172,7 @@ impl ElementConfiguration {
         self
     }
     /// Sizes both axes to fit their content.
-    pub const fn fit_all(&mut self) -> &mut Self {
+    pub const fn fit(&mut self) -> &mut Self {
         self.decleration.layout.sizing.width = Clay_SizingAxis {
             type_: Clay__SizingType::CLAY__SIZING_TYPE_FIT,
             size: Clay_SizingAxis__bindgen_ty_1 {
@@ -194,7 +194,7 @@ impl ElementConfiguration {
         self
     }
     /// Sizes the width to fit its content.
-    pub const fn x_fit(&mut self) -> &mut Self {
+    pub const fn width_fit(&mut self) -> &mut Self {
         self.decleration.layout.sizing.width = Clay_SizingAxis {
             type_: Clay__SizingType::CLAY__SIZING_TYPE_FIT,
             size: Clay_SizingAxis__bindgen_ty_1 {
@@ -207,7 +207,7 @@ impl ElementConfiguration {
         self
     }
     /// Sizes the width to fit its content, but never narrower than `min`.
-    pub const fn x_fit_min(&mut self, min: f32) -> &mut Self {
+    pub const fn width_fit_min(&mut self, min: f32) -> &mut Self {
         self.decleration.layout.sizing.width = Clay_SizingAxis {
             type_: Clay__SizingType::CLAY__SIZING_TYPE_FIT,
             size: Clay_SizingAxis__bindgen_ty_1 {
@@ -217,7 +217,7 @@ impl ElementConfiguration {
         self
     }
     /// Sizes the width to fit its content, clamped to `min..=max`.
-    pub const fn x_fit_min_max(&mut self, min: f32, max: f32) -> &mut Self {
+    pub const fn width_fit_min_max(&mut self, min: f32, max: f32) -> &mut Self {
         self.decleration.layout.sizing.width = Clay_SizingAxis {
             type_: Clay__SizingType::CLAY__SIZING_TYPE_FIT,
             size: Clay_SizingAxis__bindgen_ty_1 {
@@ -227,7 +227,7 @@ impl ElementConfiguration {
         self
     }
     /// Sizes the height to fit its content.
-    pub const fn y_fit(&mut self) -> &mut Self {
+    pub const fn height_fit(&mut self) -> &mut Self {
         self.decleration.layout.sizing.height = Clay_SizingAxis {
             type_: Clay__SizingType::CLAY__SIZING_TYPE_FIT,
             size: Clay_SizingAxis__bindgen_ty_1 {
@@ -240,7 +240,7 @@ impl ElementConfiguration {
         self
     }
     /// Sizes the height to fit its content, but never shorter than `min`.
-    pub const fn y_fit_min(&mut self, min: f32) -> &mut Self {
+    pub const fn height_fit_min(&mut self, min: f32) -> &mut Self {
         self.decleration.layout.sizing.height = Clay_SizingAxis {
             type_: Clay__SizingType::CLAY__SIZING_TYPE_FIT,
             size: Clay_SizingAxis__bindgen_ty_1 {
@@ -250,7 +250,7 @@ impl ElementConfiguration {
         self
     }
     /// Sizes the height to fit its content, clamped to `min..=max`.
-    pub const fn y_fit_min_max(&mut self, min: f32, max: f32) -> &mut Self {
+    pub const fn height_fit_min_max(&mut self, min: f32, max: f32) -> &mut Self {
         self.decleration.layout.sizing.height = Clay_SizingAxis {
             type_: Clay__SizingType::CLAY__SIZING_TYPE_FIT,
             size: Clay_SizingAxis__bindgen_ty_1 {
@@ -298,7 +298,7 @@ impl ElementConfiguration {
         self
     }
     /// Fixes the width to exactly `size` pixels.
-    pub const fn x_fixed(&mut self, size: f32) -> &mut Self {
+    pub const fn width_fixed(&mut self, size: f32) -> &mut Self {
         self.decleration.layout.sizing.width = Clay_SizingAxis {
             type_: Clay__SizingType::CLAY__SIZING_TYPE_FIXED,
             size: Clay_SizingAxis__bindgen_ty_1 {
@@ -311,7 +311,7 @@ impl ElementConfiguration {
         self
     }
     /// Fixes the height to exactly `size` pixels.
-    pub const fn y_fixed(&mut self, size: f32) -> &mut Self {
+    pub const fn height_fixed(&mut self, size: f32) -> &mut Self {
         self.decleration.layout.sizing.height = Clay_SizingAxis {
             type_: Clay__SizingType::CLAY__SIZING_TYPE_FIXED,
             size: Clay_SizingAxis__bindgen_ty_1 {
@@ -324,7 +324,7 @@ impl ElementConfiguration {
         self
     }
     /// Sizes the width to `percent` (0.0..=1.0) of the parent's inner width.
-    pub const fn x_percent(&mut self, percent: f32) -> &mut Self {
+    pub const fn width_percent(&mut self, percent: f32) -> &mut Self {
         self.decleration.layout.sizing.width = Clay_SizingAxis {
             type_: Clay__SizingType::CLAY__SIZING_TYPE_PERCENT,
             size: Clay_SizingAxis__bindgen_ty_1 {
@@ -337,7 +337,7 @@ impl ElementConfiguration {
         self
     }
     /// Sizes the height to `percent` (0.0..=1.0) of the parent's inner height.
-    pub const fn y_percent(&mut self, percent: f32) -> &mut Self {
+    pub const fn height_percent(&mut self, percent: f32) -> &mut Self {
         self.decleration.layout.sizing.height = Clay_SizingAxis {
             type_: Clay__SizingType::CLAY__SIZING_TYPE_PERCENT,
             size: Clay_SizingAxis__bindgen_ty_1 {
@@ -384,14 +384,16 @@ impl ElementConfiguration {
         self.decleration.layout.childGap = amount;
         self
     }
-    /// Lays children out top-to-bottom when `top_to_bottom` is `true`, otherwise
-    /// left-to-right.
-    pub const fn direction(&mut self, top_to_bottom: bool) -> &mut Self {
-        if top_to_bottom {
-            self.decleration.layout.layoutDirection = Clay_LayoutDirection::CLAY_TOP_TO_BOTTOM;
-        } else {
-            self.decleration.layout.layoutDirection = Clay_LayoutDirection::CLAY_LEFT_TO_RIGHT;
-        }
+    /// Stacks children top-to-bottom instead of the default left-to-right (TML
+    /// `vertical`).
+    pub const fn vertical(&mut self) -> &mut Self {
+        self.decleration.layout.layoutDirection = Clay_LayoutDirection::CLAY_TOP_TO_BOTTOM;
+        self
+    }
+    /// Lays children out left-to-right (clay's default; the counterpart to
+    /// [`Self::vertical`]).
+    pub const fn horizontal(&mut self) -> &mut Self {
+        self.decleration.layout.layoutDirection = Clay_LayoutDirection::CLAY_LEFT_TO_RIGHT;
         self
     }
     /// Centers children horizontally within this element.
@@ -509,21 +511,21 @@ impl ElementConfiguration {
         self
     }
     /// Sets the width, in pixels, of the border drawn between adjacent children.
-    pub const fn border_between_children(&mut self, width: u16) -> &mut Self {
+    pub const fn border_in_between(&mut self, width: u16) -> &mut Self {
         self.decleration.border.width.betweenChildren = width;
         self
     }
-    /// Clip (and thereby allow scrolling of) overflowing content on the given axes,
-    /// matching clay's `.clip`. Set at least one axis to `true` to generate scissor
-    /// render commands.
-    pub const fn clip(&mut self, vertical: bool, horizontal: bool) -> &mut Self {
+    /// Clips overflowing content on the given axes and lets it scroll (TML `scroll`
+    /// with `x` / `y`). Set at least one axis to `true` to generate scissor render
+    /// commands.
+    pub const fn scroll(&mut self, vertical: bool, horizontal: bool) -> &mut Self {
         self.decleration.clip.vertical = vertical;
         self.decleration.clip.horizontal = horizontal;
         self
     }
     /// Offsets the position of all child elements, used to implement scrolling of a
     /// clipped container (clay's `.clip.childOffset`).
-    pub const fn clip_child_offset(&mut self, x: f32, y: f32) -> &mut Self {
+    pub const fn scroll_child_offset(&mut self, x: f32, y: f32) -> &mut Self {
         self.decleration.clip.childOffset = Clay_Vector2 { x, y };
         self
     }
@@ -538,8 +540,8 @@ impl ElementConfiguration {
     ///
     /// let tooltip = ElementConfiguration::new()
     ///     .floating()
-    ///     .floating_attach_element_at_top_center()
-    ///     .floating_attach_to_parent_at_bottom_center()
+    ///     .floating_attach_self_top_center()
+    ///     .floating_attach_parent_bottom_center()
     ///     .floating_offset(0.0, 4.0)
     ///     .floating_z_index(10)
     ///     .end();
@@ -585,109 +587,109 @@ impl ElementConfiguration {
         self
     }
     /// Anchors to the parent's top-left corner.
-    pub const fn floating_attach_to_parent_at_top_left(&mut self) -> &mut Self {
+    pub const fn floating_attach_parent_top_left(&mut self) -> &mut Self {
         self.decleration.floating.attachPoints.parent =
             Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_LEFT_TOP;
         self
     }
     /// Anchors to the middle of the parent's left edge.
-    pub const fn floating_attach_to_parent_at_center_left(&mut self) -> &mut Self {
+    pub const fn floating_attach_parent_center_left(&mut self) -> &mut Self {
         self.decleration.floating.attachPoints.parent =
             Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_LEFT_CENTER;
         self
     }
     /// Anchors to the parent's bottom-left corner.
-    pub const fn floating_attach_to_parent_at_bottom_left(&mut self) -> &mut Self {
+    pub const fn floating_attach_parent_bottom_left(&mut self) -> &mut Self {
         self.decleration.floating.attachPoints.parent =
             Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_LEFT_BOTTOM;
         self
     }
     /// Anchors to the middle of the parent's top edge.
-    pub const fn floating_attach_to_parent_at_top_center(&mut self) -> &mut Self {
+    pub const fn floating_attach_parent_top_center(&mut self) -> &mut Self {
         self.decleration.floating.attachPoints.parent =
             Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_CENTER_TOP;
         self
     }
     /// Anchors to the parent's center.
-    pub const fn floating_attach_to_parent_at_center(&mut self) -> &mut Self {
+    pub const fn floating_attach_parent_center(&mut self) -> &mut Self {
         self.decleration.floating.attachPoints.parent =
             Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_CENTER_CENTER;
         self
     }
     /// Anchors to the middle of the parent's bottom edge.
-    pub const fn floating_attach_to_parent_at_bottom_center(&mut self) -> &mut Self {
+    pub const fn floating_attach_parent_bottom_center(&mut self) -> &mut Self {
         self.decleration.floating.attachPoints.parent =
             Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_CENTER_BOTTOM;
         self
     }
     /// Anchors to the parent's top-right corner.
-    pub const fn floating_attach_to_parent_at_top_right(&mut self) -> &mut Self {
+    pub const fn floating_attach_parent_top_right(&mut self) -> &mut Self {
         self.decleration.floating.attachPoints.parent =
             Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_RIGHT_TOP;
         self
     }
     /// Anchors to the middle of the parent's right edge.
-    pub const fn floating_attach_to_parent_at_center_right(&mut self) -> &mut Self {
+    pub const fn floating_attach_parent_center_right(&mut self) -> &mut Self {
         self.decleration.floating.attachPoints.parent =
             Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_RIGHT_CENTER;
         self
     }
     /// Anchors to the parent's bottom-right corner.
-    pub const fn floating_attach_to_parent_at_bottom_right(&mut self) -> &mut Self {
+    pub const fn floating_attach_parent_bottom_right(&mut self) -> &mut Self {
         self.decleration.floating.attachPoints.parent =
             Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_RIGHT_BOTTOM;
         self
     }
     /// Uses this element's own top-left corner as the point placed on the parent anchor.
-    pub const fn floating_attach_element_at_top_left(&mut self) -> &mut Self {
+    pub const fn floating_attach_self_top_left(&mut self) -> &mut Self {
         self.decleration.floating.attachPoints.element =
             Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_LEFT_TOP;
         self
     }
     /// Uses the middle of this element's left edge as the point placed on the parent anchor.
-    pub const fn floating_attach_element_at_center_left(&mut self) -> &mut Self {
+    pub const fn floating_attach_self_center_left(&mut self) -> &mut Self {
         self.decleration.floating.attachPoints.element =
             Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_LEFT_CENTER;
         self
     }
     /// Uses this element's own bottom-left corner as the point placed on the parent anchor.
-    pub const fn floating_attach_element_at_bottom_left(&mut self) -> &mut Self {
+    pub const fn floating_attach_self_bottom_left(&mut self) -> &mut Self {
         self.decleration.floating.attachPoints.element =
             Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_LEFT_BOTTOM;
         self
     }
     /// Uses the middle of this element's top edge as the point placed on the parent anchor.
-    pub const fn floating_attach_element_at_top_center(&mut self) -> &mut Self {
+    pub const fn floating_attach_self_top_center(&mut self) -> &mut Self {
         self.decleration.floating.attachPoints.element =
             Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_CENTER_TOP;
         self
     }
     /// Uses this element's center as the point placed on the parent anchor.
-    pub const fn floating_attach_element_at_center(&mut self) -> &mut Self {
+    pub const fn floating_attach_self_center(&mut self) -> &mut Self {
         self.decleration.floating.attachPoints.element =
             Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_CENTER_CENTER;
         self
     }
     /// Uses the middle of this element's bottom edge as the point placed on the parent anchor.
-    pub const fn floating_attach_element_at_bottom_center(&mut self) -> &mut Self {
+    pub const fn floating_attach_self_bottom_center(&mut self) -> &mut Self {
         self.decleration.floating.attachPoints.element =
             Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_CENTER_BOTTOM;
         self
     }
     /// Uses this element's own top-right corner as the point placed on the parent anchor.
-    pub const fn floating_attach_element_at_top_right(&mut self) -> &mut Self {
+    pub const fn floating_attach_self_top_right(&mut self) -> &mut Self {
         self.decleration.floating.attachPoints.element =
             Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_RIGHT_TOP;
         self
     }
     /// Uses the middle of this element's right edge as the point placed on the parent anchor.
-    pub const fn floating_attach_element_at_center_right(&mut self) -> &mut Self {
+    pub const fn floating_attach_self_center_right(&mut self) -> &mut Self {
         self.decleration.floating.attachPoints.element =
             Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_RIGHT_CENTER;
         self
     }
     /// Uses this element's own bottom-right corner as the point placed on the parent anchor.
-    pub const fn floating_attach_element_at_bottom_right(&mut self) -> &mut Self {
+    pub const fn floating_attach_self_bottom_right(&mut self) -> &mut Self {
         self.decleration.floating.attachPoints.element =
             Clay_FloatingAttachPointType::CLAY_ATTACH_POINT_RIGHT_BOTTOM;
         self
@@ -790,8 +792,8 @@ mod tests {
         c.floating_offset(3.0, 4.0)
             .floating_dimensions(10.0, 20.0)
             .floating_z_index(7)
-            .floating_attach_element_at_center()
-            .floating_attach_to_parent_at_bottom_right()
+            .floating_attach_self_center()
+            .floating_attach_parent_bottom_right()
             .floating_pointer_pass_through()
             .floating_clip_to_attached_parent()
             .floating();
@@ -822,9 +824,9 @@ mod tests {
             Clay_FloatingAttachToElement::CLAY_ATTACH_TO_PARENT
         );
 
-        // clip: the two axes and the child offset are independent.
+        // scroll: the two axes and the child offset are independent.
         let mut c = ElementConfiguration::new();
-        c.clip_child_offset(5.0, 6.0).clip(true, false);
+        c.scroll_child_offset(5.0, 6.0).scroll(true, false);
         let d = decl(&c);
         assert!(d.clip.vertical);
         assert!(!d.clip.horizontal);
@@ -855,7 +857,7 @@ mod tests {
         c.color(Color::rgb(1, 2, 3))
             .aspect_ratio(1.5)
             .child_gap(4)
-            .direction(true)
+            .vertical()
             .align_children_x_center()
             .align_children_y_bottom();
         let d = decl(&c);
@@ -879,7 +881,7 @@ mod tests {
     #[test]
     fn sizing_axes_are_independent() {
         let mut c = ElementConfiguration::new();
-        c.x_fixed(100.0).y_percent(0.5);
+        c.width_fixed(100.0).height_percent(0.5);
         let d = decl(&c);
         assert_eq!(
             d.layout.sizing.width.type_,
