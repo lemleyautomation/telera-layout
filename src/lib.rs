@@ -733,13 +733,14 @@ mod tests {
 
         let (commands, renderer) = engine.end_layout();
 
-        assert!(renderer.calls >= 2, "clay should have measured both strings");
+        assert!(
+            renderer.calls >= 2,
+            "clay should have measured both strings"
+        );
         assert!(renderer.seen.contains("hello"));
         assert!(renderer.seen.contains("world"));
         assert!(
-            commands
-                .iter()
-                .any(|c| matches!(c, RenderCommand::Text(_))),
+            commands.iter().any(|c| matches!(c, RenderCommand::Text(_))),
             "expected a text render command"
         );
 
