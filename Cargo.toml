@@ -1,15 +1,12 @@
 [package]
 name = "telera-layout"
-version = "0.5.0"
+version = "0.14.0"
 edition = "2024"
 
 [dependencies]
-csscolorparser = { version = "0.7.0", features = [ "named-colors" ] }
-serial_test = "3.2.0"
+csscolorparser = { version = "0.8.4", features = [ "named-colors" ] }
+serial_test = "4.0.1"
 
 [build-dependencies]
-bindgen = "0.71.1"
-cc = "1.2.19"
-
-[features]
-parse_logger = []
+bindgen = "0.73.1"
+cc = "1.4.5"

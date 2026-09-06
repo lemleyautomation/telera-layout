@@ -1,3 +1,8 @@
+//! Builds a single 500x500 layout with a growing root, three text elements and two
+//! child boxes, then prints the bounding box of every rectangle and text render
+//! command. `LayoutRenderer` is a stub [`MeasureText`] that reports a fixed size for
+//! every string.
+
 use telera_layout::{
     Color, ElementConfiguration, LayoutEngine, MeasureText, RenderCommand, TextConfig, Vec2,
 };
@@ -24,11 +29,11 @@ impl LayoutRenderer {
 }
 
 fn main() {
-    let mut layout_renderer = LayoutRenderer::new();
+    let layout_renderer = LayoutRenderer::new();
 
-    let mut layout = LayoutEngine::<(), (), ()>::new((500.0, 500.0));
+    let mut layout = LayoutEngine::<LayoutRenderer, (), (), ()>::new((500.0, 500.0));
 
-    layout.begin_layout();
+    layout.begin_layout(layout_renderer);
 
     layout.open_element();
 
@@ -52,7 +57,7 @@ fn main() {
         .font_size(12)
         .line_height(14)
         .end();
-    layout.add_text_element("hi1", &text_config, true, &mut layout_renderer);
+    layout.add_text_element("hi1", &text_config, true);
 
     let text_config = crate::TextConfig::new()
         .font_id(0)
@@ -60,7 +65,7 @@ fn main() {
         .font_size(45)
         .line_height(50)
         .end();
-    layout.add_text_element("hi2", &text_config, true, &mut layout_renderer);
+    layout.add_text_element("hi2", &text_config, true);
 
     let text_config = crate::TextConfig::new()
         .font_id(0)
@@ -68,7 +73,7 @@ fn main() {
         .font_size(12)
         .line_height(14)
         .end();
-    layout.add_text_element("hi3", &text_config, true, &mut layout_renderer);
+    layout.add_text_element("hi3", &text_config, true);
 
     layout.open_element();
     let config = crate::ElementConfiguration::new()
@@ -91,7 +96,7 @@ fn main() {
 
     layout.close_element();
 
-    let render_commands = layout.end_layout(&mut layout_renderer);
+    let (render_commands, layout_renderer) = layout.end_layout();
 
     for command in render_commands {
         match command {

@@ -10,6 +10,9 @@ use std::str::FromStr;
 
 pub use clay::*;
 
+/// An RGBA color with each channel stored as an `f32` in the `0.0..=255.0` range,
+/// matching clay's `Clay_Color` convention. Interpretation of the values is left to
+/// the renderer.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Color {
     pub r: f32,
@@ -20,6 +23,20 @@ pub struct Color {
 
 impl FromStr for Color {
     type Err = csscolorparser::ParseColorError;
+
+    /// Parses any CSS color string (`"#ff8800"`, `"rgb(255 136 0)"`, `"rebeccapurple"`,
+    /// `"hsl(30 100% 50%)"`, …) into a [`Color`] with `0..=255` channels.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use telera_layout::Color;
+    ///
+    /// let orange: Color = "#ff8800".parse().unwrap();
+    /// assert_eq!((orange.r, orange.g, orange.b, orange.a), (255.0, 136.0, 0.0, 255.0));
+    ///
+    /// assert!("not a color".parse::<Color>().is_err());
+    /// ```
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match csscolorparser::parse(s) {
             Ok(color) => Ok(color.to_rgba8().into()),
@@ -40,6 +57,16 @@ impl Default for Color {
 }
 
 impl Color {
+    /// Builds an opaque color from 8-bit channel values (alpha is set to `255`).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use telera_layout::Color;
+    ///
+    /// let c = Color::rgb(18, 52, 86);
+    /// assert_eq!((c.r, c.g, c.b, c.a), (18.0, 52.0, 86.0, 255.0));
+    /// ```
     pub const fn rgb(r: u8, g: u8, b: u8) -> Self {
         Color {
             r: r as f32,
@@ -48,6 +75,8 @@ impl Color {
             a: 255.0,
         }
     }
+
+    /// Copies the channel values into clay's `Clay_Color` struct.
     pub const fn to_clay(self) -> Clay_Color {
         Clay_Color {
             r: self.r,
@@ -91,6 +120,8 @@ impl From<[u8; 4]> for Color {
     }
 }
 
+/// An axis-aligned rectangle in layout space: top-left corner at `(x, y)` with the
+/// given `width` and `height`, all in pixels relative to the root of the layout.
 #[derive(Debug, Clone, Copy)]
 pub struct BoundingBox {
     pub x: f32,
@@ -110,6 +141,9 @@ impl Into<BoundingBox> for Clay_BoundingBox {
     }
 }
 
+/// A two-component `f32` vector. Used for positions, offsets and, when returned from
+/// [`MeasureText::measure_text`](crate::MeasureText::measure_text), the width (`x`) and
+/// height (`y`) of a measured string.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Vec2 {
@@ -191,14 +225,15 @@ impl Into<BorderWidth> for Clay_BorderWidth {
 pub struct Rectangle<'render_pass, CustomLayoutSettings> {
     /// The bounding box defining the area occupied by the element.
     pub bounding_box: BoundingBox,
-    /// A unique identifier for the render command.
+    /// The id of the element that produced this render command, passed through from
+    /// its [`ElementConfiguration`](crate::ElementConfiguration).
     pub id: u32,
-    /// The z-index determines the stacking order of elements.
-    /// Higher values are drawn above lower values.
+    /// Stacking order for this command. The command array is already sorted by it;
+    /// higher values are drawn on top.
     pub z_index: i16,
-    /// Custom Layout data passed through the engine untouched.
-    /// This can be used to extend the engine with features
-    /// not yet implemented
+    /// The value attached with
+    /// [`ElementConfiguration::custom_layout_settings`](crate::ElementConfiguration::custom_layout_settings),
+    /// borrowed for the duration of the render pass; `None` if the element set none.
     pub custom_layout_settings: Option<&'render_pass CustomLayoutSettings>,
     /// The fill color of the rectangle.
     pub color: Color,
@@ -211,17 +246,17 @@ pub struct Rectangle<'render_pass, CustomLayoutSettings> {
 pub struct Border<'render_pass, CustomLayoutSettings> {
     /// The bounding box defining the area occupied by the element.
     pub bounding_box: BoundingBox,
-    /// A unique identifier for the render command.
+    /// The id of the element that produced this render command, passed through from
+    /// its [`ElementConfiguration`](crate::ElementConfiguration).
     pub id: u32,
-    /// The z-index determines the stacking order of elements.
-    /// Higher values are drawn above lower values.
+    /// Stacking order for this command. The command array is already sorted by it;
+    /// higher values are drawn on top.
     pub z_index: i16,
-    /// Custom Layout data passed through the engine untouched.
-    /// This can be used to extend the engine with features
-    /// not yet implemented
+    /// The value attached with
+    /// [`ElementConfiguration::custom_layout_settings`](crate::ElementConfiguration::custom_layout_settings),
+    /// borrowed for the duration of the render pass; `None` if the element set none.
     pub custom_layout_settings: Option<&'render_pass CustomLayoutSettings>,
-    /// The text content.
-    /// The border color.
+    /// The color applied to every side with a non-zero width.
     pub color: Color,
     /// The corner radii for rounded border edges.
     pub corner_radii: CornerRadii,
@@ -234,14 +269,15 @@ pub struct Border<'render_pass, CustomLayoutSettings> {
 pub struct Text<'render_pass, CustomLayoutSettings> {
     /// The bounding box defining the area occupied by the element.
     pub bounding_box: BoundingBox,
-    /// A unique identifier for the render command.
+    /// The id of the element that produced this render command, passed through from
+    /// its [`ElementConfiguration`](crate::ElementConfiguration).
     pub id: u32,
-    /// The z-index determines the stacking order of elements.
-    /// Higher values are drawn above lower values.
+    /// Stacking order for this command. The command array is already sorted by it;
+    /// higher values are drawn on top.
     pub z_index: i16,
-    /// Custom Layout data passed through the engine untouched.
-    /// This can be used to extend the engine with features
-    /// not yet implemented
+    /// The value attached with
+    /// [`ElementConfiguration::custom_layout_settings`](crate::ElementConfiguration::custom_layout_settings),
+    /// borrowed for the duration of the render pass; `None` if the element set none.
     pub custom_layout_settings: Option<&'render_pass CustomLayoutSettings>,
     /// The text content.
     pub text: &'render_pass str,
@@ -257,50 +293,59 @@ pub struct Text<'render_pass, CustomLayoutSettings> {
     pub line_height: u16,
 }
 
-/// Represents an image with defined dimensions and data.
+/// An `IMAGE` render command: a tint color, corner radii and the caller's image data.
 #[derive(Debug, Clone)]
 pub struct Image<'render_pass, ImageElementData, CustomLayoutSettings> {
     /// The bounding box defining the area occupied by the element.
     pub bounding_box: BoundingBox,
-    /// A unique identifier for the render command.
+    /// The id of the element that produced this render command, passed through from
+    /// its [`ElementConfiguration`](crate::ElementConfiguration).
     pub id: u32,
-    /// The z-index determines the stacking order of elements.
-    /// Higher values are drawn above lower values.
+    /// Stacking order for this command. The command array is already sorted by it;
+    /// higher values are drawn on top.
     pub z_index: i16,
-    /// Custom Layout data passed through the engine untouched.
-    /// This can be used to extend the engine with features
-    /// not yet implemented
+    /// The value attached with
+    /// [`ElementConfiguration::custom_layout_settings`](crate::ElementConfiguration::custom_layout_settings),
+    /// borrowed for the duration of the render pass; `None` if the element set none.
     pub custom_layout_settings: Option<&'render_pass CustomLayoutSettings>,
-    /// Background color
+    /// Tint color for the image; `(0, 0, 0, 0)` means "untinted".
     pub background_color: Color,
-    /// The dimensions of the image.
-    pub dimensions: Vec2,
-    /// A pointer to the image data.
+    /// The image data attached with
+    /// [`ElementConfiguration::image`](crate::ElementConfiguration::image),
+    /// borrowed for the duration of the render pass.
     pub data: &'render_pass ImageElementData,
 }
 
-/// Represents a custom element with a background color, corner radii, and associated data.
+/// A `CUSTOM` render command: a background color, corner radii and the caller's data,
+/// left for the renderer to draw however it likes.
 #[derive(Debug, Clone)]
 pub struct Custom<'render_pass, CustomElementData, CustomLayoutSettings> {
     /// The bounding box defining the area occupied by the element.
     pub bounding_box: BoundingBox,
-    /// A unique identifier for the render command.
+    /// The id of the element that produced this render command, passed through from
+    /// its [`ElementConfiguration`](crate::ElementConfiguration).
     pub id: u32,
-    /// The z-index determines the stacking order of elements.
-    /// Higher values are drawn above lower values.
+    /// Stacking order for this command. The command array is already sorted by it;
+    /// higher values are drawn on top.
     pub z_index: i16,
-    /// Custom Layout data passed through the engine untouched.
-    /// This can be used to extend the engine with features
-    /// not yet implemented
+    /// The value attached with
+    /// [`ElementConfiguration::custom_layout_settings`](crate::ElementConfiguration::custom_layout_settings),
+    /// borrowed for the duration of the render pass; `None` if the element set none.
     pub custom_layout_settings: Option<&'render_pass CustomLayoutSettings>,
     /// The background color of the custom element.
     pub background_color: Color,
     /// The corner radii for rounded edges.
     pub corner_radii: CornerRadii,
-    /// A pointer to additional custom data.
+    /// The data attached with
+    /// [`ElementConfiguration::custom_element`](crate::ElementConfiguration::custom_element),
+    /// borrowed for the duration of the render pass.
     pub data: &'render_pass CustomElementData,
 }
 
+// Each of these reads fields out of `Clay_RenderCommand.renderData`, which is a C union.
+// The access is only sound when `value.commandType` matches the variant being built;
+// callers (see `LayoutEngine::end_layout`) select the impl by matching on `commandType`
+// first.
 impl<'render_pass, CustomLayoutSettings> From<&Clay_RenderCommand>
     for Rectangle<'render_pass, CustomLayoutSettings>
 {
@@ -380,7 +425,6 @@ impl<'render_pass, ImageElementData, CustomLayoutSettings> From<&Clay_RenderComm
                 value.userData.cast::<CustomLayoutSettings>().as_ref()
             },
             background_color: unsafe { value.renderData.image.backgroundColor.into() },
-            dimensions: Vec2 { x: 0.0, y: 0.0 },
             data: unsafe { &*value.renderData.image.imageData.cast() },
         }
     }
@@ -404,6 +448,11 @@ impl<CustomElementData, CustomLayoutSettings> From<&Clay_RenderCommand>
     }
 }
 
+/// One drawing instruction produced by [`LayoutEngine::end_layout`](crate::LayoutEngine::end_layout).
+///
+/// The vector returned from `end_layout` is already ordered back-to-front, so drawing
+/// the commands in sequence yields correct output. `None` commands should be skipped;
+/// `ScissorStart` / `ScissorEnd` bracket a clipped region.
 #[derive(Debug, Clone)]
 pub enum RenderCommand<'render_pass, ImageElementData, CustomElementData, CustomLayoutSettings> {
     None,

@@ -1,11 +1,14 @@
 extern crate bindgen;
 extern crate cc;
 
+// Compiles the bundled clay C source and regenerates `src/bindings/clay.rs` from
+// `clay.h`. Windows builds go through `clay.cpp` (C++20) and everything else through
+// `clay.c` (C99), with an extra `__aarch64__` define for aarch64. `rustified_enum(".*")`
+// turns clay's enums into Rust enums; clay marks them `__attribute__((packed))`, which
+// bindgen honors by emitting `#[repr(u8)]`.
 fn main() {
     let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap();
     let target_arch = std::env::var("CARGO_CFG_TARGET_ARCH").unwrap();
-
-    //std::fs::write("bindgenlog.txt", target_arch.clone()).unwrap();
 
     println!("cargo:rerun-if-changed=src/bindings/clay.h");
 

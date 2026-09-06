@@ -1,4 +1,4 @@
-// VERSION: 0.13
+// VERSION: 0.14
 
 /*
     NOTE: In order to use this library you must define
@@ -154,8 +154,7 @@ static inline void Clay__SuppressUnusedLatchDefinitionVariableWarning(void) { (v
 
 #define CLAY__INIT(type) type
 
-#define CLAY_PACKED_ENUM enum
-//#define CLAY_PACKED_ENUM enum : uint8_t
+#define CLAY_PACKED_ENUM enum : uint8_t
 
 #define CLAY__DEFAULT_STRUCT {}
 
@@ -163,12 +162,11 @@ static inline void Clay__SuppressUnusedLatchDefinitionVariableWarning(void) { (v
 
 #define CLAY__INIT(type) (type)
 
-#define CLAY_PACKED_ENUM enum
-// #if defined(_MSC_VER) && !defined(__clang__)
-// #define CLAY_PACKED_ENUM __pragma(pack(push, 1)) enum __pragma(pack(pop))
-// #else
-// #define CLAY_PACKED_ENUM enum __attribute__((__packed__))
-// #endif
+#if defined(_MSC_VER) && !defined(__clang__)
+#define CLAY_PACKED_ENUM __pragma(pack(push, 1)) enum __pragma(pack(pop))
+#else
+#define CLAY_PACKED_ENUM enum __attribute__((__packed__))
+#endif
 
 #if __STDC_VERSION__ >= 202311L
 #define CLAY__DEFAULT_STRUCT {}
@@ -861,6 +859,8 @@ CLAY_DLL_EXPORT Clay_RenderCommandArray Clay_EndLayout(void);
 // Generally only used for dynamic strings when CLAY_ID("stringLiteral") can't be used.
 CLAY_DLL_EXPORT Clay_ElementId Clay_GetElementId(Clay_String idString);
 
+// NOTE: telera-layout local patch (not part of upstream clay) - returns the id of the
+// currently open element. Backs LayoutEngine::configure_element in the Rust wrapper.
 CLAY_DLL_EXPORT uint32_t Clay_GetOpenElementId();
 // Calculates a hash ID from the given idString and index.
 // - index is used to avoid constructing dynamic ID strings in loops.
@@ -894,6 +894,10 @@ CLAY_DLL_EXPORT void Clay_SetMeasureTextFunction(Clay_Dimensions (*measureTextFu
 // Experimental - Used in cases where Clay needs to integrate with a system that manages its own scrolling containers externally.
 // Please reach out if you plan to use this function, as it may be subject to change.
 CLAY_DLL_EXPORT void Clay_SetQueryScrollOffsetFunction(Clay_Vector2 (*queryScrollOffsetFunction)(uint32_t elementId, void *userData), void *userData);
+// NOTE: telera-layout local patch - upstream clay 0.14 defines this function but omits its
+// forward declaration, so bindgen never sees it. Declared here so the Rust wrapper can bind it.
+// Experimental - enables handing scroll offset management to the host via Clay_SetQueryScrollOffsetFunction.
+CLAY_DLL_EXPORT void Clay_SetExternalScrollHandlingEnabled(bool enabled);
 // A bounds-checked "get" function for the Clay_RenderCommandArray returned from Clay_EndLayout().
 CLAY_DLL_EXPORT Clay_RenderCommand * Clay_RenderCommandArray_Get(Clay_RenderCommandArray* array, int32_t index);
 // Enables and disables Clay's internal debug tools.
@@ -1678,7 +1682,7 @@ Clay__MeasureTextCacheItem *Clay__MeasureTextCached(Clay_String *text, Clay_Text
         measuredHeight = CLAY__MAX(measuredHeight, dimensions.height);
         measured->minWidth = CLAY__MAX(dimensions.width, measured->minWidth);
     }
-    measuredWidth = CLAY__MAX(lineWidth, measuredWidth);
+    measuredWidth = CLAY__MAX(lineWidth, measuredWidth) - config->letterSpacing;
 
     measured->measuredWordsStartIndex = tempWord.next;
     measured->unwrappedDimensions.width = measuredWidth;
@@ -2526,13 +2530,13 @@ void Clay__CalculateFinalLayout(void) {
                 lineLengthChars = 0;
                 lineStartOffset = measuredWord->startOffset;
             } else {
-                lineWidth += measuredWord->width;
+                lineWidth += measuredWord->width + textConfig->letterSpacing;
                 lineLengthChars += measuredWord->length;
                 wordIndex = measuredWord->next;
             }
         }
         if (lineLengthChars > 0) {
-            Clay__WrappedTextLineArray_Add(&context->wrappedTextLines, CLAY__INIT(Clay__WrappedTextLine) { { lineWidth, lineHeight }, {.length = lineLengthChars, .chars = &textElementData->text.chars[lineStartOffset] } });
+            Clay__WrappedTextLineArray_Add(&context->wrappedTextLines, CLAY__INIT(Clay__WrappedTextLine) { { lineWidth - textConfig->letterSpacing, lineHeight }, {.length = lineLengthChars, .chars = &textElementData->text.chars[lineStartOffset] } });
             textElementData->wrappedLines.length++;
         }
         containerElement->dimensions.height = lineHeight * (float)textElementData->wrappedLines.length;
@@ -4213,16 +4217,18 @@ Clay_ElementId Clay_GetElementId(Clay_String idString) {
     return Clay__HashString(idString, 0, 0);
 }
 
-CLAY_WASM_EXPORT("Clay_GetOpenElementId")
-uint32_t Clay_GetOpenElementId() {
-    Clay_Context* context = Clay_GetCurrentContext();
-    Clay_LayoutElement *openLayoutElement = Clay__GetOpenLayoutElement();
-    return openLayoutElement->id;
-}
-
 CLAY_WASM_EXPORT("Clay_GetElementIdWithIndex")
 Clay_ElementId Clay_GetElementIdWithIndex(Clay_String idString, uint32_t index) {
     return Clay__HashString(idString, index, 0);
+}
+
+// NOTE: telera-layout local patch - see forward declaration above.
+CLAY_WASM_EXPORT("Clay_GetOpenElementId")
+uint32_t Clay_GetOpenElementId() {
+    Clay_Context* context = Clay_GetCurrentContext();
+    (void)context;
+    Clay_LayoutElement *openLayoutElement = Clay__GetOpenLayoutElement();
+    return openLayoutElement->id;
 }
 
 bool Clay_Hovered(void) {
