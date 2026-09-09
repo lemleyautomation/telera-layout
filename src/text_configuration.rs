@@ -203,7 +203,7 @@ impl From<Clay_TextElementConfig> for TextConfig {
 /// struct MonoFont;
 ///
 /// impl MeasureText for MonoFont {
-///     fn measure_text(&mut self, text: &str, config: TextConfig) -> Vec2 {
+///     fn measure_text(&mut self, text: &str, _base: &str, config: TextConfig) -> Vec2 {
 ///         let w = config.font_size as f32 * 0.6;
 ///         Vec2 { x: text.chars().count() as f32 * w, y: config.line_height as f32 }
 ///     }
@@ -213,7 +213,13 @@ pub trait MeasureText {
     /// Returns the width (`x`) and height (`y`) in pixels that `text` will occupy when
     /// drawn with `text_config`. Called once per unwrapped word; results are cached by
     /// clay until [`LayoutEngine::reset_measure_text_cache`](crate::LayoutEngine::reset_measure_text_cache).
-    fn measure_text(&mut self, text: &str, text_config: TextConfig) -> Vec2;
+    ///
+    /// `base` is the whole string the text element was added with; `text` is a
+    /// sub-slice of it (`text.as_ptr()` lies inside `base`), so an implementation
+    /// can shape `base` once and answer every word query against that. `base ==
+    /// text` when the source length is unknown (e.g. clay's internal space
+    /// probe).
+    fn measure_text(&mut self, text: &str, base: &str, text_config: TextConfig) -> Vec2;
 }
 
 /// FFI trampoline registered with clay's `Clay_SetMeasureTextFunction`. Reconstructs
@@ -234,11 +240,23 @@ where
             text_slice.length as _,
         ));
 
+        // The full string the slice was cut from, so the renderer can shape it
+        // once and serve every word from that. Falls back to `text` when clay
+        // didn't record a base length.
+        let base = if text_slice.baseLength > 0 && !text_slice.baseChars.is_null() {
+            core::str::from_utf8_unchecked(core::slice::from_raw_parts(
+                text_slice.baseChars as *const u8,
+                text_slice.baseLength as _,
+            ))
+        } else {
+            text
+        };
+
         let text_config = TextConfig::from(*config);
 
         let renderer: &mut T = &mut *(user_data as *mut T);
 
-        renderer.measure_text(text, text_config).into()
+        renderer.measure_text(text, base, text_config).into()
     }
 }
 

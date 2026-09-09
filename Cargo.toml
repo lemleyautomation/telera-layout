@@ -5,8 +5,10 @@ edition = "2024"
 
 [dependencies]
 csscolorparser = { version = "0.8.4", features = [ "named-colors" ] }
+
+[dev-dependencies]
 serial_test = "4.0.1"
 
 [build-dependencies]
-bindgen = "0.73.1"
+bindgen = "0.73.2"
 cc = "1.4.5"

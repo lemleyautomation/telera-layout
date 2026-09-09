@@ -14,7 +14,7 @@ struct LayoutRenderer {
 }
 
 impl MeasureText for LayoutRenderer {
-    fn measure_text(&mut self, _text: &str, _text_config: TextConfig) -> Vec2 {
+    fn measure_text(&mut self, _text: &str, _base: &str, _text_config: TextConfig) -> Vec2 {
         self.mt
     }
 }

@@ -46,7 +46,7 @@ unsafe extern "C" fn error_handler(error_data: Clay_ErrorData) {
 ///
 /// struct NoText;
 /// impl MeasureText for NoText {
-///     fn measure_text(&mut self, _t: &str, _c: TextConfig) -> Vec2 { Vec2::default() }
+///     fn measure_text(&mut self, _t: &str, _b: &str, _c: TextConfig) -> Vec2 { Vec2::default() }
 /// }
 ///
 /// let mut engine = LayoutEngine::<NoText, (), (), ()>::new((800.0, 600.0));
@@ -93,7 +93,7 @@ impl<
     ///
     /// struct NoText;
     /// impl MeasureText for NoText {
-    ///     fn measure_text(&mut self, _t: &str, _c: TextConfig) -> Vec2 { Vec2::default() }
+    ///     fn measure_text(&mut self, _t: &str, _b: &str, _c: TextConfig) -> Vec2 { Vec2::default() }
     /// }
     ///
     /// let engine = LayoutEngine::<NoText, (), (), ()>::new((1920.0, 1080.0));
@@ -190,7 +190,7 @@ impl<
     ///
     /// struct Mono;
     /// impl MeasureText for Mono {
-    ///     fn measure_text(&mut self, t: &str, c: TextConfig) -> Vec2 {
+    ///     fn measure_text(&mut self, t: &str, _b: &str, c: TextConfig) -> Vec2 {
     ///         Vec2 { x: t.len() as f32 * c.font_size as f32 * 0.6, y: c.line_height as f32 }
     ///     }
     /// }
@@ -297,7 +297,7 @@ impl<
     ///
     /// ```
     /// # use telera_layout::{ElementConfiguration, LayoutEngine, MeasureText, TextConfig, Vec2};
-    /// # struct N; impl MeasureText for N { fn measure_text(&mut self, _t: &str, _c: TextConfig) -> Vec2 { Vec2::default() } }
+    /// # struct N; impl MeasureText for N { fn measure_text(&mut self, _t: &str, _b: &str, _c: TextConfig) -> Vec2 { Vec2::default() } }
     /// let mut engine = LayoutEngine::<N, (), (), ()>::new((100.0, 100.0));
     /// let panel = ElementConfiguration::new().id("panel").grow().end();
     ///
@@ -432,7 +432,7 @@ impl<
     ///
     /// ```
     /// # use telera_layout::{Clay_ElementId, Clay_PointerData, ElementConfiguration, LayoutEngine, MeasureText, TextConfig, Vec2};
-    /// # struct N; impl MeasureText for N { fn measure_text(&mut self, _t: &str, _c: TextConfig) -> Vec2 { Vec2::default() } }
+    /// # struct N; impl MeasureText for N { fn measure_text(&mut self, _t: &str, _b: &str, _c: TextConfig) -> Vec2 { Vec2::default() } }
     /// use std::sync::atomic::{AtomicBool, Ordering};
     ///
     /// extern "C" fn on_button(_id: Clay_ElementId, _p: Clay_PointerData, clicked: &AtomicBool) {
@@ -493,7 +493,7 @@ impl<
     ///
     /// ```
     /// # use telera_layout::{LayoutEngine, MeasureText, TextConfig, Vec2};
-    /// # struct N; impl MeasureText for N { fn measure_text(&mut self, _t: &str, _c: TextConfig) -> Vec2 { Vec2::default() } }
+    /// # struct N; impl MeasureText for N { fn measure_text(&mut self, _t: &str, _b: &str, _c: TextConfig) -> Vec2 { Vec2::default() } }
     /// let engine = LayoutEngine::<N, (), (), ()>::new((10.0, 10.0));
     /// let a = engine.get_element_id("header");
     /// let b = engine.get_element_id("header");
@@ -540,7 +540,7 @@ impl<
     ///
     /// ```
     /// # use telera_layout::{ElementConfiguration, LayoutEngine, MeasureText, TextConfig, Vec2};
-    /// # struct N; impl MeasureText for N { fn measure_text(&mut self, _t: &str, _c: TextConfig) -> Vec2 { Vec2::default() } }
+    /// # struct N; impl MeasureText for N { fn measure_text(&mut self, _t: &str, _b: &str, _c: TextConfig) -> Vec2 { Vec2::default() } }
     /// let mut engine = LayoutEngine::<N, (), (), ()>::new((200.0, 200.0));
     /// let box_cfg = ElementConfiguration::new().id("box").fixed(50.0, 30.0).end();
     ///
@@ -653,7 +653,7 @@ mod tests {
 
     struct FixedText;
     impl MeasureText for FixedText {
-        fn measure_text(&mut self, _t: &str, _c: TextConfig) -> Vec2 {
+        fn measure_text(&mut self, _t: &str, _b: &str, _c: TextConfig) -> Vec2 {
             Vec2 { x: 10.0, y: 10.0 }
         }
     }
@@ -709,7 +709,7 @@ mod tests {
         seen: String,
     }
     impl MeasureText for RecordingText {
-        fn measure_text(&mut self, text: &str, _c: TextConfig) -> Vec2 {
+        fn measure_text(&mut self, text: &str, _b: &str, _c: TextConfig) -> Vec2 {
             self.calls += 1;
             self.seen.push_str(text);
             Vec2 { x: 7.0, y: 7.0 }
