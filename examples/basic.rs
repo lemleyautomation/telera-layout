@@ -57,7 +57,7 @@ fn main() {
         .font_size(12)
         .line_height(14)
         .end();
-    layout.add_text_element("hi1", &text_config, true);
+    layout.add_static_text_element("hi1", &text_config);
 
     let text_config = crate::TextConfig::new()
         .font_id(0)
@@ -65,7 +65,7 @@ fn main() {
         .font_size(45)
         .line_height(50)
         .end();
-    layout.add_text_element("hi2", &text_config, true);
+    layout.add_static_text_element("hi2", &text_config);
 
     let text_config = crate::TextConfig::new()
         .font_id(0)
@@ -73,7 +73,7 @@ fn main() {
         .font_size(12)
         .line_height(14)
         .end();
-    layout.add_text_element("hi3", &text_config, true);
+    layout.add_static_text_element("hi3", &text_config);
 
     layout.open_element();
     let config = crate::ElementConfiguration::new()

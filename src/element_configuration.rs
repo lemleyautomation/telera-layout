@@ -719,12 +719,16 @@ impl ElementConfiguration {
 
     /// Marks this element as an image and stores the address of `image` for clay to
     /// pass through to the `IMAGE` render command as
-    /// [`Image::data`](crate::Image). `image` must outlive every layout pass the
-    /// configuration is used in.
+    /// [`Image::data`](crate::Image). `image` only needs to be valid for this call -
+    /// [`LayoutEngine::configure_element`](crate::LayoutEngine::configure_element)
+    /// clones it immediately into storage it owns for the rest of the layout pass, so
+    /// `image` can go out of scope right after this returns; no `const` or `'static`
+    /// bookkeeping of your own is required.
     ///
     /// ```
     /// use telera_layout::ElementConfiguration;
     ///
+    /// #[derive(Clone, Debug)]
     /// struct Texture(u32);
     /// let logo = Texture(7);
     /// let cfg = ElementConfiguration::new().image(&logo).aspect_ratio(2.0).end();
@@ -736,8 +740,11 @@ impl ElementConfiguration {
 
     /// Marks this element as custom and stores the address of `custom_element_data`
     /// for clay to pass through to the `CUSTOM` render command as
-    /// [`Custom::data`](crate::Custom). The referent must outlive every layout pass
-    /// the configuration is used in.
+    /// [`Custom::data`](crate::Custom). Like [`Self::image`], the referent only needs
+    /// to be valid for this call -
+    /// [`LayoutEngine::configure_element`](crate::LayoutEngine::configure_element)
+    /// clones it immediately, so it's fine for it to go out of scope right after this
+    /// returns.
     pub const fn custom_element<CustomElementData>(
         &mut self,
         custom_element_data: &CustomElementData,
@@ -750,8 +757,11 @@ impl ElementConfiguration {
     /// Stores the address of `custom_layout_settings` in the element's `userData`, so
     /// clay passes it through untouched to every render command produced by this
     /// element as
-    /// [`custom_layout_settings`](crate::Rectangle::custom_layout_settings). The
-    /// referent must outlive every layout pass the configuration is used in.
+    /// [`custom_layout_settings`](crate::Rectangle::custom_layout_settings). Like
+    /// [`Self::image`], the referent only needs to be valid for this call -
+    /// [`LayoutEngine::configure_element`](crate::LayoutEngine::configure_element)
+    /// clones it immediately, so it's fine for it to go out of scope right after this
+    /// returns.
     pub const fn custom_layout_settings<CustomLayoutSettings>(
         &mut self,
         custom_layout_settings: &CustomLayoutSettings,

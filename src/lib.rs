@@ -62,9 +62,9 @@ unsafe extern "C" fn error_handler(error_data: Clay_ErrorData) {
 /// ```
 pub struct LayoutEngine<
     TextRenderer: MeasureText,
-    ImageElementData: Debug,
-    CustomElementData: Debug,
-    CustomLayoutSettings,
+    ImageElementData: Debug + Clone,
+    CustomElementData: Debug + Clone,
+    CustomLayoutSettings: Clone,
 > {
     _memory: Vec<u8>,
     context: *mut Clay_Context,
@@ -74,13 +74,31 @@ pub struct LayoutEngine<
     text_renderer: Option<TextRenderer>,
     _phantom: PhantomData<(CustomElementData, ImageElementData, CustomLayoutSettings)>,
     dangling_element_count: u32,
+    /// Per-frame storage for the `ImageElementData` referents `.image()` calls point
+    /// at. `configure_element` clones each one in immediately (while it's still
+    /// guaranteed valid - see `configure_element`'s doc comment) and rewrites clay's
+    /// pointer to the clone's stable address, so the caller's own referent can be as
+    /// short-lived as they like. Cleared at the start of every [`Self::begin_layout`],
+    /// once the previous pass's render commands (the only readers) have been fully
+    /// consumed.
+    image_arena: Vec<Box<ImageElementData>>,
+    /// Per-frame storage for `.custom_element()` referents; same rationale as
+    /// [`Self::image_arena`].
+    custom_arena: Vec<Box<CustomElementData>>,
+    /// Per-frame storage for `.custom_layout_settings()` referents; same rationale as
+    /// [`Self::image_arena`].
+    layout_settings_arena: Vec<Box<CustomLayoutSettings>>,
+    /// Per-frame storage for [`Self::add_text_element`] content; same rationale as
+    /// [`Self::image_arena`]. Not used by [`Self::add_static_text_element`], which
+    /// never copies.
+    text_arena: Vec<Box<str>>,
 }
 
 impl<
     TextRenderer: MeasureText,
-    ImageElementData: Debug,
-    CustomElementData: Debug,
-    CustomLayoutSettings,
+    ImageElementData: Debug + Clone,
+    CustomElementData: Debug + Clone,
+    CustomLayoutSettings: Clone,
 > LayoutEngine<TextRenderer, ImageElementData, CustomElementData, CustomLayoutSettings>
 {
     /// Creates an engine for a layout viewport of `dimensions` pixels `(width, height)`,
@@ -152,6 +170,10 @@ impl<
             text_renderer: None,
             _phantom: PhantomData {},
             dangling_element_count: 0,
+            image_arena: Vec::new(),
+            custom_arena: Vec::new(),
+            layout_settings_arena: Vec::new(),
+            text_arena: Vec::new(),
         }
     }
 
@@ -202,12 +224,20 @@ impl<
     /// engine.begin_layout(Mono);
     /// engine.open_element();
     /// engine.configure_element(&row);
-    /// engine.add_text_element("hello", &label, true);
+    /// engine.add_static_text_element("hello", &label);
     /// engine.close_element();
     /// let (commands, _mono) = engine.end_layout();
     /// # assert!(!commands.is_empty());
     /// ```
     pub fn begin_layout(&mut self, text_renderer: TextRenderer) {
+        // The previous pass's render commands (the only readers of these arenas) have
+        // already been fully consumed by the time this is called again, so it's safe
+        // to drop them before this pass fills the arenas back up.
+        self.image_arena.clear();
+        self.custom_arena.clear();
+        self.layout_settings_arena.clear();
+        self.text_arena.clear();
+
         self.text_renderer = Some(text_renderer);
         let ptr = self.text_renderer.as_mut().unwrap() as *mut TextRenderer as *mut c_void;
         unsafe {
@@ -309,27 +339,53 @@ impl<
     ///
     /// assert_eq!(id, engine.get_element_id("panel").id);
     /// ```
+    ///
+    /// `config`'s `.image()` / `.custom_element()` / `.custom_layout_settings()`
+    /// referents (if any) only need to be valid *at the moment this call happens* -
+    /// their values are cloned in immediately, into storage this engine owns for the
+    /// rest of the layout pass, so the caller's own referent can go out of scope right
+    /// after this call returns.
     pub fn configure_element(&mut self, config: &ElementConfiguration) -> u32 {
         self.undangle();
+        let mut decl: Clay_ElementDeclaration = config.into();
+
+        // SAFETY: `ElementConfiguration::image()` / `::custom_element()` /
+        // `::custom_layout_settings()` can only have stored one of these pointers from
+        // a live reference at that call site (that's the only way to obtain the
+        // pointer in the first place); nothing has run since then except further,
+        // non-consuming `ElementConfiguration` builder calls and this call itself, so
+        // the referent is still guaranteed alive right now. Clone it immediately,
+        // while that guarantee holds, into a box this engine owns for the rest of the
+        // pass - independent of how long the caller's own referent happens to live.
+        if !decl.image.imageData.is_null() {
+            let data = unsafe { (*decl.image.imageData.cast::<ImageElementData>()).clone() };
+            self.image_arena.push(Box::new(data));
+            decl.image.imageData = self.image_arena.last().unwrap().as_ref() as *const ImageElementData
+                as *mut c_void;
+        }
+        if !decl.custom.customData.is_null() {
+            let data = unsafe { (*decl.custom.customData.cast::<CustomElementData>()).clone() };
+            self.custom_arena.push(Box::new(data));
+            decl.custom.customData = self.custom_arena.last().unwrap().as_ref() as *const CustomElementData
+                as *mut c_void;
+        }
+        if !decl.userData.is_null() {
+            let data = unsafe { (*decl.userData.cast::<CustomLayoutSettings>()).clone() };
+            self.layout_settings_arena.push(Box::new(data));
+            decl.userData = self.layout_settings_arena.last().unwrap().as_ref()
+                as *const CustomLayoutSettings as *mut c_void;
+        }
+
         unsafe {
-            Clay__ConfigureOpenElement(config.into());
+            Clay__ConfigureOpenElement(decl);
             Clay_GetOpenElementId()
         }
     }
 
-    /// Adds a text element containing `content` to the currently open element, styled
-    /// by `config`. `statically_allicated` tells clay whether `content` lives for the
-    /// program's lifetime (a string literal) so it can skip copying it; when `false`,
-    /// `content` must still outlive the [`Self::end_layout`] of this pass.
-    ///
-    /// Uses the text renderer handed to [`Self::begin_layout`]; panics if no layout
-    /// pass is in progress.
-    pub fn add_text_element(
-        &mut self,
-        content: &str,
-        config: &TextConfig,
-        statically_allicated: bool,
-    ) {
+    // Shared setup for both text-adding methods: asserts a layout pass is open and an
+    // element has been configured, and re-points clay at the renderer in case the
+    // engine was moved since `begin_layout`.
+    fn prepare_text_pass(&mut self) {
         assert!(
             self.text_renderer.is_some(),
             "add_text_element called outside of a begin_layout / end_layout pass"
@@ -339,17 +395,54 @@ impl<
             "All elements must have a Configuration!"
         );
 
-        // Re-point clay at the renderer in case the engine was moved since begin_layout.
         let ptr = self.text_renderer.as_mut().unwrap() as *mut TextRenderer as *mut c_void;
         unsafe {
             Clay_SetMeasureTextFunction(Some(measure_text_c_callback::<TextRenderer>), ptr);
         }
+    }
+
+    /// Adds a text element containing `content` to the currently open element, styled
+    /// by `config`. `content` is copied into a per-frame arena so it safely outlives
+    /// this layout pass regardless of how long the caller's own value lives - pass any
+    /// `&str`, borrowed or freshly built, with no lifetime bookkeeping of your own. If
+    /// `content` is a `&'static str` (e.g. a string literal), prefer
+    /// [`Self::add_static_text_element`] instead to skip the copy.
+    ///
+    /// Uses the text renderer handed to [`Self::begin_layout`]; panics if no layout
+    /// pass is in progress.
+    pub fn add_text_element(&mut self, content: &str, config: &TextConfig) {
+        self.prepare_text_pass();
+
+        self.text_arena.push(content.into());
+        let stored: &str = self.text_arena.last().unwrap();
+        let text_config = unsafe { Clay__StoreTextElementConfig(config.into()) };
+        unsafe {
+            Clay__OpenTextElement(
+                Clay_String {
+                    isStaticallyAllocated: false,
+                    length: stored.len() as i32,
+                    chars: stored.as_ptr() as *mut _,
+                },
+                text_config,
+            )
+        };
+    }
+
+    /// Like [`Self::add_text_element`] but for text that is genuinely `'static`
+    /// (string literals, interned strings, ...) - skips the per-frame copy entirely,
+    /// since the `'static` bound (enforced by the compiler, not trusted at runtime)
+    /// guarantees `content` never dangles.
+    ///
+    /// Uses the text renderer handed to [`Self::begin_layout`]; panics if no layout
+    /// pass is in progress.
+    pub fn add_static_text_element(&mut self, content: &'static str, config: &TextConfig) {
+        self.prepare_text_pass();
 
         let text_config = unsafe { Clay__StoreTextElementConfig(config.into()) };
         unsafe {
             Clay__OpenTextElement(
                 Clay_String {
-                    isStaticallyAllocated: statically_allicated,
+                    isStaticallyAllocated: true,
                     length: content.len() as i32,
                     chars: content.as_ptr() as *mut _,
                 },
@@ -629,9 +722,9 @@ impl<
 
 impl<
     TextRenderer: MeasureText,
-    ImageElementData: Debug,
-    CustomElementData: Debug,
-    CustomLayoutSettings,
+    ImageElementData: Debug + Clone,
+    CustomElementData: Debug + Clone,
+    CustomLayoutSettings: Clone,
 > Drop for LayoutEngine<TextRenderer, ImageElementData, CustomElementData, CustomLayoutSettings>
 {
     /// Clears clay's current-context pointer so it cannot dangle into this engine's
@@ -727,8 +820,10 @@ mod tests {
         let cfg = ElementConfiguration::new().grow().end();
         engine.configure_element(&cfg);
         let text_cfg = TextConfig::new().end();
-        engine.add_text_element("hello ", &text_cfg, true);
-        engine.add_text_element("world", &text_cfg, true);
+        engine.add_static_text_element("hello ", &text_cfg);
+        // Exercise the copying path with a value that is not `'static`.
+        let dynamic = String::from("world");
+        engine.add_text_element(&dynamic, &text_cfg);
         engine.close_element();
 
         let (commands, renderer) = engine.end_layout();
@@ -759,7 +854,7 @@ mod tests {
     fn add_text_element_without_begin_layout_panics() {
         let mut engine = Engine::new((10.0, 10.0));
         let text_cfg = TextConfig::new().end();
-        engine.add_text_element("nope", &text_cfg, true);
+        engine.add_text_element("nope", &text_cfg);
     }
 
     #[test]
@@ -787,5 +882,119 @@ mod tests {
         assert_eq!(hit.load(Ordering::SeqCst), target.id);
         assert!(engine.pointer_over(target));
         assert!(engine.pointer_over_ids().iter().any(|e| e.id == target.id));
+    }
+
+    // Regression coverage for the dangling-pointer bug `configure_element` /
+    // `add_text_element` now close: a `Payload` carries real heap data (unlike `()`),
+    // so a use-after-free would show up as corrupted content, not silently "work".
+    #[derive(Debug, Clone, PartialEq)]
+    struct Payload(String);
+
+    type PayloadEngine = LayoutEngine<FixedText, Payload, Payload, Payload>;
+
+    #[test]
+    #[serial]
+    fn configure_element_clones_image_data_that_does_not_outlive_the_call() {
+        let mut engine = PayloadEngine::new((100.0, 100.0));
+        engine.begin_layout(FixedText);
+        engine.open_element();
+
+        // `payload` (and `cfg`, which points at it) are dropped right after
+        // `configure_element` returns - well before `end_layout` runs. That's exactly
+        // the real gap this fix closes: `visual_node`-style code builds a config from
+        // a local, hands it to `configure_element`, and returns; `end_layout` (called
+        // later, by the caller) used to dereference a pointer into an already-popped
+        // stack frame.
+        let payload = Payload("image data".to_string());
+        let cfg = ElementConfiguration::new().image(&payload).end();
+        engine.configure_element(&cfg);
+        drop(payload);
+        engine.close_element();
+
+        let (commands, _text) = engine.end_layout();
+        let image = commands
+            .iter()
+            .find_map(|c| match c {
+                RenderCommand::Image(i) => Some(i),
+                _ => None,
+            })
+            .expect("expected an image render command");
+        assert_eq!(image.data, &Payload("image data".to_string()));
+    }
+
+    #[test]
+    #[serial]
+    fn configure_element_clones_custom_element_data_that_does_not_outlive_the_call() {
+        let mut engine = PayloadEngine::new((100.0, 100.0));
+        engine.begin_layout(FixedText);
+        engine.open_element();
+
+        let payload = Payload("custom data".to_string());
+        let cfg = ElementConfiguration::new().custom_element(&payload).end();
+        engine.configure_element(&cfg);
+        drop(payload);
+        engine.close_element();
+
+        let (commands, _text) = engine.end_layout();
+        let custom = commands
+            .iter()
+            .find_map(|c| match c {
+                RenderCommand::Custom(c) => Some(c),
+                _ => None,
+            })
+            .expect("expected a custom render command");
+        assert_eq!(custom.data, &Payload("custom data".to_string()));
+    }
+
+    #[test]
+    #[serial]
+    fn configure_element_clones_custom_layout_settings_that_does_not_outlive_the_call() {
+        let mut engine = PayloadEngine::new((100.0, 100.0));
+        engine.begin_layout(FixedText);
+        engine.open_element();
+
+        let payload = Payload("layout settings".to_string());
+        let cfg = ElementConfiguration::new()
+            .custom_layout_settings(&payload)
+            .grow()
+            .color(Color::rgb(0, 0, 0))
+            .end();
+        engine.configure_element(&cfg);
+        drop(payload);
+        engine.close_element();
+
+        let (commands, _text) = engine.end_layout();
+        let settings = commands
+            .iter()
+            .find_map(|c| match c {
+                RenderCommand::Rectangle(r) => r.custom_layout_settings,
+                _ => None,
+            })
+            .expect("expected custom_layout_settings on a render command");
+        assert_eq!(settings, &Payload("layout settings".to_string()));
+    }
+
+    #[test]
+    #[serial]
+    fn add_text_element_copies_content_that_does_not_outlive_the_call() {
+        let mut engine = Engine::new((100.0, 100.0));
+        engine.begin_layout(FixedText);
+        engine.open_element();
+        let cfg = ElementConfiguration::new().grow().end();
+        engine.configure_element(&cfg);
+
+        {
+            // `dynamic` goes out of scope right after `add_text_element` returns -
+            // well before `end_layout` reads the text command's content back out.
+            let dynamic = String::from("dynamic text");
+            let text_cfg = TextConfig::new().end();
+            engine.add_text_element(&dynamic, &text_cfg);
+        }
+        engine.close_element();
+
+        let (commands, _text) = engine.end_layout();
+        assert!(commands
+            .iter()
+            .any(|c| matches!(c, RenderCommand::Text(t) if t.text == "dynamic text")));
     }
 }
