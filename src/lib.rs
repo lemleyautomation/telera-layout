@@ -1,8 +1,8 @@
 mod bindings;
 use bindings::*;
 pub use bindings::{
-    Border, BorderWidth, BoundingBox, Color, CornerRadii, Custom, Image, Rectangle, RenderCommand,
-    Vec2,
+    Border, BorderWidth, BoundingBox, Color, CornerRadii, Custom, ElementID, Image, Rectangle,
+    RenderCommand, Vec2,
 };
 // clay types that appear in `LayoutEngine`'s public method signatures.
 pub use bindings::{
@@ -360,14 +360,14 @@ impl<
         if !decl.image.imageData.is_null() {
             let data = unsafe { (*decl.image.imageData.cast::<ImageElementData>()).clone() };
             self.image_arena.push(Box::new(data));
-            decl.image.imageData = self.image_arena.last().unwrap().as_ref() as *const ImageElementData
-                as *mut c_void;
+            decl.image.imageData =
+                self.image_arena.last().unwrap().as_ref() as *const ImageElementData as *mut c_void;
         }
         if !decl.custom.customData.is_null() {
             let data = unsafe { (*decl.custom.customData.cast::<CustomElementData>()).clone() };
             self.custom_arena.push(Box::new(data));
-            decl.custom.customData = self.custom_arena.last().unwrap().as_ref() as *const CustomElementData
-                as *mut c_void;
+            decl.custom.customData = self.custom_arena.last().unwrap().as_ref()
+                as *const CustomElementData as *mut c_void;
         }
         if !decl.userData.is_null() {
             let data = unsafe { (*decl.userData.cast::<CustomLayoutSettings>()).clone() };
@@ -993,8 +993,10 @@ mod tests {
         engine.close_element();
 
         let (commands, _text) = engine.end_layout();
-        assert!(commands
-            .iter()
-            .any(|c| matches!(c, RenderCommand::Text(t) if t.text == "dynamic text")));
+        assert!(
+            commands
+                .iter()
+                .any(|c| matches!(c, RenderCommand::Text(t) if t.text == "dynamic text"))
+        );
     }
 }

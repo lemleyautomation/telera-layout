@@ -85,6 +85,33 @@ impl Color {
             a: self.a,
         }
     }
+
+    /// Packs the four `0..=255` channels into one byte each of a `u32` -
+    /// `r` in the low byte through `a` in the high byte, matching WGSL's
+    /// `unpack4x8unorm` byte order. Each channel is rounded and clamped to
+    /// `0..=255` first.
+    ///
+    /// Meant for carrying a color through a single flat-interpolated `u32`
+    /// vertex attribute (a `` `shader-color-*` `` slot) instead of four
+    /// separate `f32` ones - see `telera-app`'s `ResolvedShader::colors`.
+    /// Deliberately **not** bit-cast to `f32`: an arbitrary packed RGBA8
+    /// value very often lands on a NaN/Inf/denormal `f32` bit pattern, and
+    /// those are not guaranteed to survive ordinary (non-flat) vertex
+    /// interpolation bit-for-bit on every GPU - carrying the bits as a
+    /// genuine `u32` through a flat attribute sidesteps that entirely.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use telera_layout::Color;
+    ///
+    /// let c = Color::rgb(0x12, 0x34, 0x56);
+    /// assert_eq!(c.pack_rgba8(), 0xFF_56_34_12);
+    /// ```
+    pub fn pack_rgba8(&self) -> u32 {
+        let byte = |v: f32| v.round().clamp(0.0, 255.0) as u32;
+        byte(self.r) | (byte(self.g) << 8) | (byte(self.b) << 16) | (byte(self.a) << 24)
+    }
 }
 
 impl Into<Clay_Color> for Color {
@@ -168,6 +195,8 @@ impl Into<Clay_Dimensions> for Vec2 {
         }
     }
 }
+
+pub type ElementID = Clay_ElementId;
 
 /// Defines individual corner radii for an element.
 #[derive(Debug, Clone)]
