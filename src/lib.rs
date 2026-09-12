@@ -4,10 +4,10 @@ pub use bindings::{
     Border, BorderWidth, BoundingBox, Color, CornerRadii, Custom, ElementID, Image, Rectangle,
     RenderCommand, Vec2,
 };
-// clay types that appear in `LayoutEngine`'s public method signatures.
+// clay types that appear in `LayoutEngine`'s public method signatures. `ElementID`
+// (above) stands in for `Clay_ElementId` itself everywhere it would otherwise appear.
 pub use bindings::{
-    Clay_ElementId, Clay_PointerData, Clay_PointerDataInteractionState, Clay_ScrollContainerData,
-    Clay_Vector2,
+    Clay_PointerData, Clay_PointerDataInteractionState, Clay_ScrollContainerData, Clay_Vector2,
 };
 
 mod text_configuration;
@@ -492,7 +492,7 @@ impl<
 
     /// Scroll position and content/container sizes for the clip element `id`, or
     /// `None` if no clip element with that id exists in the last layout.
-    pub fn scroll_container_data(&self, id: Clay_ElementId) -> Option<Clay_ScrollContainerData> {
+    pub fn scroll_container_data(&self, id: ElementID) -> Option<Clay_ScrollContainerData> {
         unsafe {
             Clay_SetCurrentContext(self.context);
             let scroll_container_data = Clay_GetScrollContainerData(id);
@@ -524,11 +524,11 @@ impl<
     /// the element was laid out, whenever the pointer is over it.
     ///
     /// ```
-    /// # use telera_layout::{Clay_ElementId, Clay_PointerData, ElementConfiguration, LayoutEngine, MeasureText, TextConfig, Vec2};
+    /// # use telera_layout::{ElementID, Clay_PointerData, ElementConfiguration, LayoutEngine, MeasureText, TextConfig, Vec2};
     /// # struct N; impl MeasureText for N { fn measure_text(&mut self, _t: &str, _b: &str, _c: TextConfig) -> Vec2 { Vec2::default() } }
     /// use std::sync::atomic::{AtomicBool, Ordering};
     ///
-    /// extern "C" fn on_button(_id: Clay_ElementId, _p: Clay_PointerData, clicked: &AtomicBool) {
+    /// extern "C" fn on_button(_id: ElementID, _p: Clay_PointerData, clicked: &AtomicBool) {
     ///     clicked.store(true, Ordering::SeqCst);
     /// }
     ///
@@ -549,12 +549,12 @@ impl<
     pub fn on_hover<UserData>(
         &mut self,
         user_data: &UserData,
-        callback: extern "C" fn(Clay_ElementId, Clay_PointerData, &UserData),
+        callback: extern "C" fn(ElementID, Clay_PointerData, &UserData),
     ) {
         unsafe {
             let raw = core::mem::transmute::<
-                extern "C" fn(Clay_ElementId, Clay_PointerData, &UserData),
-                unsafe extern "C" fn(Clay_ElementId, Clay_PointerData, isize),
+                extern "C" fn(ElementID, Clay_PointerData, &UserData),
+                unsafe extern "C" fn(ElementID, Clay_PointerData, isize),
             >(callback);
             Clay_OnHover(Some(raw), user_data as *const UserData as isize);
         }
@@ -563,13 +563,13 @@ impl<
     /// Whether the pointer set by [`Self::pointer_state`] is over the element with id
     /// `cfg`, based on the most recent layout. Unlike [`Self::hovered`] this works
     /// outside the build phase, given an id from [`Self::get_element_id`].
-    pub fn pointer_over(&self, cfg: Clay_ElementId) -> bool {
+    pub fn pointer_over(&self, cfg: ElementID) -> bool {
         unsafe { Clay_PointerOver(cfg) }
     }
 
     /// Ids of every element currently under the pointer, in reverse z order
     /// (top-most first). Wraps clay's `Clay_GetPointerOverIds`.
-    pub fn pointer_over_ids(&self) -> Vec<Clay_ElementId> {
+    pub fn pointer_over_ids(&self) -> Vec<ElementID> {
         unsafe {
             let array = Clay_GetPointerOverIds();
             if array.internalArray.is_null() || array.length <= 0 {
@@ -579,7 +579,7 @@ impl<
         }
     }
 
-    /// Hashes `id` into a [`Clay_ElementId`] the same way
+    /// Hashes `id` into an [`ElementID`] the same way
     /// [`ElementConfiguration::id`] does, for use with [`Self::pointer_over`],
     /// [`Self::bounding_box`], [`Self::scroll_container_data`] and
     /// [`ElementConfiguration::floating_attach_to_element`].
@@ -592,7 +592,7 @@ impl<
     /// let b = engine.get_element_id("header");
     /// assert_eq!(a.id, b.id);
     /// ```
-    pub fn get_element_id(&self, id: &str) -> Clay_ElementId {
+    pub fn get_element_id(&self, id: &str) -> ElementID {
         unsafe {
             Clay_GetElementId(Clay_String {
                 isStaticallyAllocated: false,
@@ -604,7 +604,7 @@ impl<
 
     /// clay's `Clay_GetElementIdWithIndex` - like [`Self::get_element_id`] but folds
     /// `index` into the hash (matches the `id_indexed` element builder).
-    pub fn get_element_id_with_index(&self, id: &str, index: u32) -> Clay_ElementId {
+    pub fn get_element_id_with_index(&self, id: &str, index: u32) -> ElementID {
         unsafe {
             Clay_GetElementIdWithIndex(
                 Clay_String {
@@ -619,12 +619,12 @@ impl<
 
     // Raw `Clay_GetElementData`; returns a struct whose `found` flag is false when no
     // element matched.
-    fn element_data(id: Clay_ElementId) -> Clay_ElementData {
+    fn element_data(id: ElementID) -> Clay_ElementData {
         unsafe { Clay_GetElementData(id) }
     }
 
     /// `true` if an element with this id was present in the most recent layout.
-    pub fn element_found(&self, id: Clay_ElementId) -> bool {
+    pub fn element_found(&self, id: ElementID) -> bool {
         Self::element_data(id).found
     }
 
@@ -647,7 +647,7 @@ impl<
     /// assert_eq!((bb.width, bb.height), (50.0, 30.0));
     /// assert!(engine.bounding_box(engine.get_element_id("missing")).is_none());
     /// ```
-    pub fn bounding_box(&self, id: Clay_ElementId) -> Option<BoundingBox> {
+    pub fn bounding_box(&self, id: ElementID) -> Option<BoundingBox> {
         let element_data = Self::element_data(id);
 
         if element_data.found {
@@ -790,7 +790,7 @@ mod tests {
         let _ = Engine::with_max_element_count((1.0, 1.0), 8192);
     }
 
-    extern "C" fn record_hover(id: Clay_ElementId, _p: Clay_PointerData, hit: &AtomicU32) {
+    extern "C" fn record_hover(id: ElementID, _p: Clay_PointerData, hit: &AtomicU32) {
         hit.store(id.id, Ordering::SeqCst);
     }
 

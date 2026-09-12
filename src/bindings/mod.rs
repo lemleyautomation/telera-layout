@@ -198,6 +198,20 @@ impl Into<Clay_Dimensions> for Vec2 {
 
 pub type ElementID = Clay_ElementId;
 
+// `id` is the hash clay itself compares elements by (see e.g. its own hash-map
+// lookup/collision handling, which only ever checks `elementId.id`) - `offset` and
+// `baseId` are inputs to that hash, and `stringId` is just the human-readable label
+// kept for debug tools, so two ids naming the same element always agree on `id` even
+// if they were produced from different `get_element_id`/`get_element_id_with_index`
+// calls that also filled in `stringId`'s data pointer differently.
+impl PartialEq for ElementID {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl Eq for ElementID {}
+
 /// Defines individual corner radii for an element.
 #[derive(Debug, Clone)]
 pub struct CornerRadii {
