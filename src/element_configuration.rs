@@ -48,6 +48,12 @@ impl ElementConfiguration {
     /// [`LayoutEngine::pointer_over`](crate::LayoutEngine::pointer_over),
     /// [`bounding_box`](crate::LayoutEngine::bounding_box) and floating attachment.
     ///
+    /// `label` only needs to be valid *at the moment this call happens* -
+    /// [`LayoutEngine::configure_element`](crate::LayoutEngine::configure_element)
+    /// copies it into storage the engine owns, so the caller's own string can be as
+    /// short-lived as they like. If `label` is a `&'static str` (e.g. a string
+    /// literal), prefer [`Self::id_static`] instead to skip that copy.
+    ///
     /// ```
     /// use telera_layout::ElementConfiguration;
     ///
@@ -61,6 +67,9 @@ impl ElementConfiguration {
     /// `CLAY_IDI`), so unique ids can be generated inside a loop without building
     /// dynamic strings.
     ///
+    /// `label` only needs to be valid *at the moment this call happens*, same as
+    /// [`Self::id`]. Prefer [`Self::id_indexed_static`] for a `&'static str` label.
+    ///
     /// ```
     /// use telera_layout::ElementConfiguration;
     ///
@@ -69,10 +78,97 @@ impl ElementConfiguration {
     /// }
     /// ```
     pub fn id_indexed(&mut self, label: &str, index: u32) -> &mut Self {
+        self.hash_id(label, index, false)
+    }
+
+    /// Like [`Self::id`] but for a label that is genuinely `'static` (a string
+    /// literal, an interned string, ...) - skips the per-frame copy
+    /// [`LayoutEngine::configure_element`](crate::LayoutEngine::configure_element)
+    /// would otherwise make, since the `'static` bound guarantees `label` never
+    /// dangles.
+    ///
+    /// ```
+    /// use telera_layout::ElementConfiguration;
+    ///
+    /// let cfg = ElementConfiguration::new().id_static("sidebar").end();
+    /// ```
+    pub fn id_static(&mut self, label: &'static str) -> &mut Self {
+        self.id_indexed_static(label, 0)
+    }
+
+    /// Like [`Self::id_indexed`] but for a `&'static str` label - see
+    /// [`Self::id_static`].
+    ///
+    /// ```
+    /// use telera_layout::ElementConfiguration;
+    ///
+    /// for i in 0..3 {
+    ///     let _row = ElementConfiguration::new().id_indexed_static("row", i).end();
+    /// }
+    /// ```
+    pub fn id_indexed_static(&mut self, label: &'static str, index: u32) -> &mut Self {
+        self.hash_id(label, index, true)
+    }
+
+    /// Like [`Self::id`] but for a `label` that is neither `'static` nor going to be
+    /// copied by [`LayoutEngine::configure_element`](crate::LayoutEngine::configure_element),
+    /// with the caller taking over guaranteeing it stays valid instead. Prefer
+    /// [`Self::id`] unless you specifically need to avoid that copy.
+    ///
+    /// # Safety
+    ///
+    /// `label`'s bytes must remain valid for as long as this element's id might still
+    /// be read back through its `stringId` - clay never copies `stringId`, it only
+    /// ever carries forward whatever pointer is handed to it, and this call opts out
+    /// of the copy that `id`/`id_indexed` make to guarantee that on the caller's
+    /// behalf. That means at least through the matching `configure_element` call, and
+    /// in practice for as long as the safe path's `id_arena` would have kept a copy
+    /// around - see its doc on [`LayoutEngine`](crate::LayoutEngine) for why that's
+    /// two full [`LayoutEngine::begin_layout`](crate::LayoutEngine::begin_layout)
+    /// calls, not just one.
+    ///
+    /// ```
+    /// use telera_layout::ElementConfiguration;
+    ///
+    /// let label = String::from("sidebar");
+    /// let cfg = unsafe { ElementConfiguration::new().id_unchecked(&label).end() };
+    /// # drop(cfg);
+    /// ```
+    pub unsafe fn id_unchecked(&mut self, label: &str) -> &mut Self {
+        unsafe { self.id_indexed_unchecked(label, 0) }
+    }
+
+    /// Like [`Self::id_indexed`] but for a `label` that is neither `'static` nor going
+    /// to be copied - see [`Self::id_unchecked`].
+    ///
+    /// # Safety
+    ///
+    /// Same contract as [`Self::id_unchecked`].
+    ///
+    /// ```
+    /// use telera_layout::ElementConfiguration;
+    ///
+    /// for i in 0..3 {
+    ///     let label = format!("row-{i}");
+    ///     let _row = unsafe { ElementConfiguration::new().id_indexed_unchecked(&label, i).end() };
+    /// }
+    /// ```
+    pub unsafe fn id_indexed_unchecked(&mut self, label: &str, index: u32) -> &mut Self {
+        self.hash_id(label, index, true)
+    }
+
+    // Shared by every `id`/`id_indexed` variant above: hashes `label` (clay's
+    // `CLAY_ID`/`CLAY_IDI`) and stores the result, carrying `label`'s pointer along
+    // inside `stringId` either way. `is_static` is clay's `isStaticallyAllocated` flag
+    // on that `stringId` - here it doubles as "`configure_element` may trust this
+    // pointer and skip its copy", which is true both when the type system guarantees
+    // it (`_static`) and when the caller has taken over that guarantee instead
+    // (`_unchecked`).
+    fn hash_id(&mut self, label: &str, index: u32, is_static: bool) -> &mut Self {
         self.decleration.id = unsafe {
             Clay__HashString(
                 Clay_String {
-                    isStaticallyAllocated: true,
+                    isStaticallyAllocated: is_static,
                     length: label.len() as i32,
                     chars: label.as_ptr() as *const _,
                 },
@@ -82,6 +178,7 @@ impl ElementConfiguration {
         };
         self
     }
+
     /// Grows both axes to fill the remaining space in the parent, shared with other
     /// growing siblings (TML `grow`).
     pub const fn grow(&mut self) -> &mut Self {

@@ -92,6 +92,18 @@ pub struct LayoutEngine<
     /// [`Self::image_arena`]. Not used by [`Self::add_static_text_element`], which
     /// never copies.
     text_arena: Vec<Box<str>>,
+    /// Storage for [`ElementConfiguration::id`] / `::id_indexed` labels (not used by
+    /// their `_static` counterparts, which never copy). Unlike the other arenas above,
+    /// entries here must outlive an extra frame: clay never copies an id's `stringId`,
+    /// it just carries the pointer we hand it forward into its own persisted
+    /// per-element state, which callers can still read back (via
+    /// [`Self::pointer_over_ids`], [`Self::on_hover`],
+    /// [`ElementID::label`](crate::ElementID::label), ...) at the very start of the
+    /// *next* frame, before that frame has produced any id of its own to replace it.
+    /// So rather than a plain `Vec` cleared every [`Self::begin_layout`], each entry
+    /// carries an `aged` flag and survives two `begin_layout` calls - see
+    /// `begin_layout` for the aging itself.
+    id_arena: Vec<(bool, Box<str>)>,
 }
 
 impl<
@@ -174,6 +186,7 @@ impl<
             custom_arena: Vec::new(),
             layout_settings_arena: Vec::new(),
             text_arena: Vec::new(),
+            id_arena: Vec::new(),
         }
     }
 
@@ -237,6 +250,15 @@ impl<
         self.custom_arena.clear();
         self.layout_settings_arena.clear();
         self.text_arena.clear();
+
+        // `id_arena` entries need to survive one extra frame beyond the arenas above
+        // (see its field doc) - drop only entries that have already survived a full
+        // extra frame (`aged`), then age everything that's left before this frame's
+        // `configure_element` calls add any new entries of their own.
+        self.id_arena.retain(|(aged, _)| !*aged);
+        for (aged, _) in &mut self.id_arena {
+            *aged = true;
+        }
 
         self.text_renderer = Some(text_renderer);
         let ptr = self.text_renderer.as_mut().unwrap() as *mut TextRenderer as *mut c_void;
@@ -341,10 +363,14 @@ impl<
     /// ```
     ///
     /// `config`'s `.image()` / `.custom_element()` / `.custom_layout_settings()`
-    /// referents (if any) only need to be valid *at the moment this call happens* -
-    /// their values are cloned in immediately, into storage this engine owns for the
-    /// rest of the layout pass, so the caller's own referent can go out of scope right
-    /// after this call returns.
+    /// referents, and a non-`_static` `.id()` / `.id_indexed()` label (if any), only
+    /// need to be valid *at the moment this call happens* - they're copied in
+    /// immediately, into storage this engine owns, so the caller's own referent can go
+    /// out of scope right after this call returns. Unlike the others, the id copy is
+    /// kept around for an extra frame - see this engine's `id_arena` field doc. A
+    /// `.id_unchecked()` / `.id_indexed_unchecked()` label is never copied - the
+    /// `unsafe` on those calls is the caller taking over that lifetime guarantee
+    /// instead.
     pub fn configure_element(&mut self, config: &ElementConfiguration) -> u32 {
         self.undangle();
         let mut decl: Clay_ElementDeclaration = config.into();
@@ -374,6 +400,29 @@ impl<
             self.layout_settings_arena.push(Box::new(data));
             decl.userData = self.layout_settings_arena.last().unwrap().as_ref()
                 as *const CustomLayoutSettings as *mut c_void;
+        }
+        // `ElementConfiguration::id()` / `::id_indexed()` already hashed `label` (valid
+        // at that call site, same reasoning as above) into `decl.id`, but clay never
+        // copies a `Clay_String` - `decl.id.stringId.chars` is still just the raw
+        // pointer `label` handed over, unless `::id_static()` / `::id_indexed_static()`
+        // / `::id_unchecked()` / `::id_indexed_unchecked()` was used instead
+        // (`isStaticallyAllocated`, guaranteed valid - by the type system for the
+        // `_static` pair, by the caller's own `unsafe` promise for the `_unchecked`
+        // pair). Copy it now, into `id_arena`, while `label`'s referent is still
+        // guaranteed alive, and repoint `stringId` at the stable copy.
+        if !decl.id.stringId.chars.is_null() && !decl.id.stringId.isStaticallyAllocated {
+            let bytes = unsafe {
+                core::slice::from_raw_parts(
+                    decl.id.stringId.chars as *const u8,
+                    decl.id.stringId.length as usize,
+                )
+            };
+            // SAFETY: `ElementConfiguration::id()` / `::id_indexed()` only ever fill
+            // this field from a Rust `&str`, so the bytes are valid UTF-8.
+            let owned: Box<str> = unsafe { core::str::from_utf8_unchecked(bytes) }.into();
+            self.id_arena.push((false, owned));
+            let stored: &str = &self.id_arena.last().unwrap().1;
+            decl.id.stringId.chars = stored.as_ptr() as *mut _;
         }
 
         unsafe {
@@ -998,5 +1047,69 @@ mod tests {
                 .iter()
                 .any(|c| matches!(c, RenderCommand::Text(t) if t.text == "dynamic text"))
         );
+    }
+
+    // Regression coverage for the same dangling-pointer shape as
+    // `configure_element_clones_image_data_that_does_not_outlive_the_call`, but for a
+    // non-`_static` `.id()` label: `label` is dropped right after `configure_element`
+    // returns, so if `configure_element` didn't copy it into `id_arena`,
+    // `ElementID::label()` would read freed memory.
+    #[test]
+    #[serial]
+    fn configure_element_copies_id_label_that_does_not_outlive_the_call() {
+        let mut engine = Engine::new((100.0, 100.0));
+        engine.begin_layout(FixedText);
+        engine.open_element();
+
+        let label = String::from("dynamic-target");
+        let cfg = ElementConfiguration::new().id(&label).grow().end();
+        engine.configure_element(&cfg);
+        drop(label);
+        engine.close_element();
+        let _ = engine.end_layout();
+
+        assert_eq!(engine.id_arena.last().unwrap().1.as_ref(), "dynamic-target");
+    }
+
+    // `id_arena` entries back a `stringId` pointer that clay's own persisted
+    // per-element state can still be read through on the frame *after* the one that
+    // built them (e.g. via `pointer_over_ids` / `on_hover`), so `begin_layout` must
+    // only drop entries that have already survived one full extra frame, not every
+    // entry from the frame that just ended.
+    #[test]
+    #[serial]
+    fn id_arena_entries_survive_one_extra_begin_layout() {
+        let mut engine = Engine::new((100.0, 100.0));
+
+        engine.begin_layout(FixedText);
+        engine.open_element();
+        let cfg = ElementConfiguration::new().id("frame-one").grow().end();
+        engine.configure_element(&cfg);
+        engine.close_element();
+        let _ = engine.end_layout();
+
+        assert_eq!(engine.id_arena.len(), 1);
+        assert!(!engine.id_arena[0].0, "fresh entry should not start aged");
+
+        // The next `begin_layout` must age this entry, not drop it - it can still be
+        // read back this frame, before any new id replaces it.
+        engine.begin_layout(FixedText);
+        assert_eq!(engine.id_arena.len(), 1);
+        assert!(engine.id_arena[0].0, "surviving entry should now be aged");
+        assert_eq!(engine.id_arena[0].1.as_ref(), "frame-one");
+        engine.open_element();
+        let cfg = ElementConfiguration::new().id("frame-two").grow().end();
+        engine.configure_element(&cfg);
+        engine.close_element();
+        let _ = engine.end_layout();
+
+        assert_eq!(engine.id_arena.len(), 2);
+
+        // The third `begin_layout` drops the now-twice-aged "frame-one" entry, keeps
+        // "frame-two" (aging it in turn).
+        engine.begin_layout(FixedText);
+        assert_eq!(engine.id_arena.len(), 1);
+        assert_eq!(engine.id_arena[0].1.as_ref(), "frame-two");
+        assert!(engine.id_arena[0].0);
     }
 }

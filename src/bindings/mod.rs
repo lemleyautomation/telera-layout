@@ -212,6 +212,48 @@ impl PartialEq for ElementID {
 
 impl Eq for ElementID {}
 
+impl ElementID {
+    /// The original label this id was hashed from - clay's `stringId` field, read
+    /// back out as a `&str`.
+    ///
+    /// This is the string passed to
+    /// [`ElementConfiguration::id`](crate::ElementConfiguration::id) /
+    /// [`::id_indexed`](crate::ElementConfiguration::id_indexed) /
+    /// [`::id_static`](crate::ElementConfiguration::id_static) /
+    /// [`::id_indexed_static`](crate::ElementConfiguration::id_indexed_static) /
+    /// [`::id_unchecked`](crate::ElementConfiguration::id_unchecked) /
+    /// [`::id_indexed_unchecked`](crate::ElementConfiguration::id_indexed_unchecked),
+    /// [`LayoutEngine::get_element_id`](crate::LayoutEngine::get_element_id), or
+    /// [`LayoutEngine::get_element_id_with_index`](crate::LayoutEngine::get_element_id_with_index).
+    /// Returns `None` for a default/"null" id (clay's `CLAY__STRING_DEFAULT`, with no
+    /// `chars` pointer) or if the stored bytes are not valid UTF-8.
+    ///
+    /// clay itself never copies `stringId` - it just carries along whatever pointer
+    /// was handed to it, so this borrows from whatever backed that original label. For
+    /// an id built by [`LayoutEngine::configure_element`](crate::LayoutEngine::configure_element)
+    /// from a non-`_static`, non-`_unchecked` `.id()` / `.id_indexed()` call, that's
+    /// the engine's own `id_arena`, good for the frame it was configured in and the
+    /// frame after; for every other case (the `_static` and `_unchecked` builders, or
+    /// `get_element_id` / `get_element_id_with_index`, none of which copy anything)
+    /// it's whatever the caller originally passed in, so the returned `&str` may be
+    /// garbage or the call may crash if that memory no longer lives - only trust those
+    /// for `'static` labels or ones you know are still alive.
+    pub fn label(&self) -> Option<&str> {
+        let string_id = &self.stringId;
+        if string_id.chars.is_null() || string_id.length <= 0 {
+            return None;
+        }
+        let bytes = unsafe {
+            core::slice::from_raw_parts(string_id.chars as *const u8, string_id.length as usize)
+        };
+        core::str::from_utf8(bytes).ok()
+    }
+
+    pub fn hash(&self) -> u32 {
+        self.id
+    }
+}
+
 /// Defines individual corner radii for an element.
 #[derive(Debug, Clone)]
 pub struct CornerRadii {
