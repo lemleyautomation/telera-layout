@@ -26,7 +26,20 @@ fn main() {
 
     let regen = std::env::var_os("TELERA_REGEN_BINDINGS").is_some();
 
-    if target_os == "windows" {
+    if target_arch == "wasm32" {
+        // Plain C build via clang's wasm32 target. `-ffreestanding` keeps clang's own
+        // stdint/stdbool/stddef headers from reaching for a libc that doesn't exist on
+        // wasm32-unknown-unknown; any memcpy/memset clang emits resolves against Rust's
+        // compiler_builtins. `CLAY_WASM` is deliberately NOT defined: it swaps the
+        // measure-text / scroll-offset function pointers for JS imports, while the Rust
+        // side installs them through `Clay_SetMeasureTextFunction`.
+        cc::Build::new()
+            .file("src/bindings/clay.c")
+            .flag("-ffreestanding")
+            .define("CLAY_DISABLE_SIMD", None)
+            .warnings(false)
+            .compile("clay");
+    } else if target_os == "windows" {
         cc::Build::new()
             .file("src/bindings/clay.cpp")
             .warnings(false)
